@@ -124,13 +124,13 @@ export const navigationGroups: NavGroup[] = [
         ],
       },
       {
-        title: "Status Pages",
-        href: "/status-pages",
-        description: "Publish a clear, public view of service health.",
+        title: "Status Page",
+        href: "/status",
+        description: "Open the public, real-time view of service health.",
         icon: Globe2,
         phase: "Phase 3",
         plannedFeatures: [
-          "Public status page per workspace",
+          "Public status view from stored checks",
           "Component-level status and incident updates",
           "Custom branding and domain settings",
         ],

@@ -5,6 +5,8 @@ import { isDatabaseConfigured } from "@/lib/db";
 import { getCronSecret } from "@/lib/monitoring/config";
 import { runDueChecks } from "@/lib/monitoring/engine";
 
+export const maxDuration = 60;
+
 function isAuthorized(request: Request, secret: string): boolean {
   const authorization = request.headers.get("authorization");
   const headerToken = authorization?.startsWith("Bearer ") ? authorization.slice(7) : null;

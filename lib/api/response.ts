@@ -52,3 +52,10 @@ export function analyticsCacheHeaders(): HeadersInit {
     "X-Content-Type-Options": "nosniff",
   };
 }
+
+export function statusCacheHeaders(): HeadersInit {
+  return {
+    "Cache-Control": "public, s-maxage=30, stale-while-revalidate=60",
+    "X-Content-Type-Options": "nosniff",
+  };
+}

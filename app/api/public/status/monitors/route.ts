@@ -1,0 +1,34 @@
+import { connection } from "next/server";
+
+import {
+  apiError,
+  apiSuccess,
+  databaseUnavailable,
+  serverError,
+  statusCacheHeaders,
+} from "@/lib/api/response";
+import { isDatabaseConfigured } from "@/lib/db";
+import { getStatusMonitors } from "@/lib/data/status";
+import { statusRangeQuerySchema } from "@/lib/monitoring/schemas";
+
+export async function GET(request: Request) {
+  await connection();
+  if (!isDatabaseConfigured()) return databaseUnavailable();
+  const query = statusRangeQuerySchema.safeParse(
+    Object.fromEntries(new URL(request.url).searchParams),
+  );
+  if (!query.success) {
+    return apiError("invalid_query", "Invalid status range.", 400, {
+      headers: statusCacheHeaders(),
+    });
+  }
+  try {
+    const monitors = await getStatusMonitors(query.data.range);
+    return apiSuccess(
+      { range: query.data.range, generatedAt: new Date().toISOString(), monitors },
+      { headers: statusCacheHeaders() },
+    );
+  } catch {
+    return serverError();
+  }
+}

@@ -48,3 +48,11 @@ export const analyticsMonitorsQuerySchema = paginationQuerySchema.extend({
   order: z.enum(["asc", "desc"]).default("asc"),
   search: z.string().trim().max(120).optional(),
 });
+
+export const statusRangeQuerySchema = z.object({
+  range: historyRangeSchema.default("24h"),
+});
+
+export const statusIncidentsQuerySchema = paginationQuerySchema.extend({
+  range: historyRangeSchema.default("30d"),
+});

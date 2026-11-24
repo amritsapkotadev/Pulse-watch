@@ -1,0 +1,10 @@
+{
+  "$schema": "https://openapi.vercel.sh/vercel.json",
+  "schedules": {
+    "pulsewatch-due-checks": {
+      "schedule": "*/15 * * * *",
+      "path": "/api/internal/run-checks",
+      "requestMethod": "GET"
+    }
+  }
+}

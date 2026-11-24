@@ -11,8 +11,9 @@ PulseWatch is a unified workspace for testing APIs, monitoring endpoint availabi
 - Real database-backed monitoring dashboard at `/dashboard`; no mock monitoring results are used
 - Public read-only APIs for monitor overview, monitors, incidents, per-monitor history, and monitoring analytics
 - Database-backed analytics at `/analytics` with range filters, uptime/failure/response-time metrics, incident analysis, monitor comparison, and per-monitor detail pages
+- Public status page at `/status` with real availability history, incident updates, and 45-second refresh from stored monitoring data
 - Single-tenant admin panel at `/monitors` with hashed-password login, HTTP-only session cookies, CSRF/origin checks, and login rate limiting
-- Monitor create/edit/delete, server-side manual checks, GitHub Actions scheduled due-check execution, and active incident tracking
+- Monitor create/edit/delete, server-side manual checks, Vercel Schedules automatic due-check execution with a GitHub Actions dispatch fallback, and active incident tracking
 - Neon PostgreSQL + Prisma schema with monitors, checks, incidents, leases, admin users, collections, saved requests, environments, and workspace state
 - Server-side SSRF validation, DNS pinning, redirect revalidation, sanitized failure messages, and bounded response reading reused from the request executor
 - DB lease to prevent overlapping checks, configurable failure threshold, incident creation after threshold, and automatic resolution on recovery
@@ -115,6 +116,9 @@ Public read-only:
 - `GET /api/public/analytics/incidents?range=24h|7d|30d|90d&page=1&pageSize=10`
 - `GET /api/public/analytics/monitors?range=24h|7d|30d|90d&page=1&pageSize=25&sort=name|uptimePercentage|averageResponseTimeMs|totalChecks|failedChecks&order=asc|desc&search=...`
 - `GET /api/public/monitors/:id/analytics?range=24h|7d|30d|90d`
+- `GET /api/public/status?range=24h|7d|30d`
+- `GET /api/public/status/monitors?range=24h|7d|30d`
+- `GET /api/public/status/incidents?range=24h|7d|30d&page=1&pageSize=25`
 
 Admin-only:
 
@@ -132,7 +136,7 @@ Cron:
 - `GET|POST /api/cron/monitor` with `Authorization: Bearer $CRON_SECRET` or `?secret=$CRON_SECRET`
 - `POST /api/internal/run-checks` with `Authorization: Bearer $CRON_SECRET` (POST alias of the cron handler used by GitHub Actions)
 
-All API responses use `{ ok: true, data }` or `{ ok: false, error }`. Admin/cron/request routes send no-store headers; public analytics routes use a short public cache (`s-maxage=60`, `stale-while-revalidate=300`) while keeping the same JSON envelope. Admin mutations require the `x-csrf-token` header returned by login/session and a same-origin `Origin`/`Referer` when present.
+All API responses use `{ ok: true, data }` or `{ ok: false, error }`. Admin/cron/request routes send no-store headers; public analytics routes use a short public cache (`s-maxage=60`, `stale-while-revalidate=300`), and public status routes use `s-maxage=30`, `stale-while-revalidate=60`. All responses keep the same JSON envelope. Admin mutations require the `x-csrf-token` header returned by login/session and a same-origin `Origin`/`Referer` when present.
 
 With Cache Components enabled, Next.js uses the default Node.js runtime and rejects an explicit `runtime = "nodejs"` export, so API routes intentionally do not export a runtime value.
 
@@ -153,9 +157,45 @@ With Cache Components enabled, Next.js uses the default Node.js runtime and reje
 
 The main page separates current status, historical uptime, historical response time, endpoint comparison, and failure/incident analytics. Each monitor row links to `/analytics/:id?range=...` for a detailed trend and incident timeline. The production domain is never hardcoded; deployed links use the existing configured origin.
 
+## Public status page
+
+`/status` is a standalone public page outside the dashboard shell. It is built only from persisted `Monitor`, `MonitorCheck`, and `Incident` rows for active monitors with `displayPublicly = true`. It adds no tables, requires no migration, and never generates mock uptime, response time, or incident data.
+
+The page shows an overall state, service cards, stored uptime bars, and recent incident history. The overview uses `24h` check data; the service section can switch between `24h`, `7d`, and `30d`; incident history always reads the last 30 days. Auto-refresh runs every 45 seconds only while the tab is visible, and every displayed time is UTC. The last-updated timestamp and age are always shown; data older than two minutes is explicitly marked as stale.
+
+Status rules:
+
+- A service is `DOWN` when its stored `currentStatus` is `DOWN`, `UNKNOWN` when it has no checks or no determinate current state, `DEGRADED` when it is currently up but has failed checks in the last 24 hours, and `Operational` otherwise.
+- Overall state is `OUTAGE` if any service is down, `DEGRADED` if any service is degraded or unknown, `NO_DATA` when no public monitors exist or all are unknown, and `Operational` only when all services are operational.
+- Uptime buckets use `generate_series` over UTC hour/day boundaries. Empty buckets are `No data`; all-success buckets are `Operational`; failure-only buckets are `Outage`; mixed buckets are `Degraded`.
+- Uptime percentages use determinate `UP`/`DOWN` checks only. Missing data is never counted as success.
+- Average response time uses successful `UP` checks with a finite positive response time.
+- Incident updates are derived only from stored `startedAt`, `lastSeenAt`, `occurrenceCount`, and `resolvedAt`. Incident descriptions, monitor URLs, credentials, headers, request bodies, and sensitive error messages are never exposed.
+
+Database access is centralized in `lib/data/status.ts`: a public monitor query, grouped status counts for `24h`/`7d`/`30d`, aggregated successful response time, last-successful-check lookup, a raw `generate_series`/`LEFT JOIN` history query, and paginated incident queries with safe field selection. Public routes validate query parameters and return generic errors; no raw database error is included in a response.
+
+The page requires the same environment variables as the rest of the app (`DATABASE_URL`, `DIRECT_URL`, and `NEXT_PUBLIC_APP_URL` for deployed origins). It does not require a new secret. The deployed URL is derived from the request origin; no production hostname is hardcoded.
+
+## Automatic monitoring with Vercel Schedules
+
+`vercel.json` configures a static Vercel Schedule named `pulsewatch-due-checks`. It sends a `GET` request to `/api/internal/run-checks` every 15 minutes, which is the shortest interval supported by Vercel Hobby Schedules. On Pro or Enterprise, change the expression to `*/5 * * * *` if monitors should be evaluated every five minutes.
+
+Vercel automatically sends `Authorization: Bearer $CRON_SECRET` when `CRON_SECRET` is set in the Production environment. The route compares that header with the application’s `CRON_SECRET` using a timing-safe comparison, then runs only monitors whose `nextCheckAt` is due. The database lease prevents duplicate or overlapping executions if GitHub Actions and Vercel both invoke the endpoint.
+
+Setup:
+
+1. Set `CRON_SECRET` in the Vercel Production environment to the same value used by the deployed app.
+2. Push `vercel.json` and redeploy to production; Vercel creates schedules when the deployment becomes current.
+3. Open **Schedules → pulsewatch-due-checks** in the Vercel dashboard and select **Run Schedule** to verify a 2xx response.
+4. Wait for the next automatic run and confirm new `MonitorCheck` rows in Neon.
+
+The route exports `maxDuration = 60` so multiple due checks can finish within one invocation. Vercel cron delivery is best effort and can be duplicated, so the scheduler is idempotent: due checks are selected by `nextCheckAt`, protected by `MonitorLease`, and skipped when another run already owns the monitor.
+
 ## Automatic monitoring with GitHub Actions
 
-`.github/workflows/pulsewatch-monitor.yml` runs every five minutes and supports manual execution. It sends a `POST` request to `PULSEWATCH_APP_URL/api/internal/run-checks` with the exact header `Authorization: Bearer <CRON_SECRET>`. The secret is read from the GitHub repository secret store, never from the workflow file or URL, and the job fails if the endpoint returns a non-2xx response.
+`.github/workflows/pulsewatch-monitor.yml` is a backup scheduler and manual trigger; Vercel Schedules is the primary automatic scheduler. The workflow declares `cron: "*/5 * * * *"` and supports manual execution. It sends a `POST` request to `PULSEWATCH_APP_URL/api/internal/run-checks` with the exact header `Authorization: Bearer <CRON_SECRET>`. The secret is read from the GitHub repository secret store, never from the workflow file or URL, and the job fails if the endpoint returns a non-2xx response.
+
+GitHub scheduled events can be delayed, skipped, or not delivered in a repository. Confirm them by opening **Actions → PulseWatch monitor** and checking for runs whose trigger is `schedule`; a healthy workflow should show both `schedule` and `workflow_dispatch` runs. If only manual runs appear, keep Vercel Schedules enabled as the automatic source.
 
 ### Configure GitHub
 
@@ -252,7 +292,7 @@ Before exposing this outside a trusted environment:
 3. Add audit logging that redacts credentials and sensitive response headers.
 4. Add real notification delivery through Resend and configure alert routing.
 5. Re-run a dedicated SSRF, DNS rebinding, redirect, and resource-exhaustion security review.
-6. Confirm a real GitHub Actions scheduled run has succeeded before relying on automatic monitoring.
+6. Confirm a real Vercel Schedule invocation has succeeded before relying on automatic monitoring; treat GitHub Actions schedule runs as a backup signal.
 
 LocalStorage `obf1:` encoding is obfuscation, not encryption. Database secrets are stored as plain text in Neon, so restrict database access and use a dedicated, least-privilege role.
 
@@ -281,8 +321,13 @@ Then verify saved real data:
 6. Open `/analytics`, switch between `24h`, `7d`, `30d`, and `90d`, and confirm metrics/charts change from the stored check rows.
 7. Call `GET /api/public/analytics/overview?range=30d`, `GET /api/public/analytics/uptime?range=30d`, `GET /api/public/analytics/response-time?range=30d`, `GET /api/public/analytics/incidents?range=30d`, and `GET /api/public/analytics/monitors?range=30d`.
 8. Open a monitor detail link from the endpoint comparison table and confirm the trend and incident timeline match that monitor.
-9. Inspect `Monitor`, `MonitorCheck`, `Incident`, and `MonitorLease` rows in Neon Studio with `npm run db:studio`.
-10. Trigger the GitHub Actions workflow manually, wait for a scheduled run, and confirm new `MonitorCheck` rows as described in [Automatic monitoring with GitHub Actions](#automatic-monitoring-with-github-actions).
+9. Open `/status` and confirm the overall state, service rows, uptime bars, and incident list match stored data.
+10. Switch `/status` between `24h`, `7d`, and `30d` and confirm history changes from stored check rows.
+11. Call `GET /api/public/status?range=24h`, `GET /api/public/status/monitors?range=30d`, and `GET /api/public/status/incidents?range=30d`; confirm invalid ranges return `400 invalid_query`.
+12. Open the Vercel **Schedules** tab, run `pulsewatch-due-checks`, and confirm the invocation returns `200` with a `due`/`executed` summary.
+13. Wait for the next automatic Vercel schedule and confirm new `MonitorCheck` rows in Neon Studio.
+14. Inspect `Monitor`, `MonitorCheck`, `Incident`, and `MonitorLease` rows in Neon Studio with `npm run db:studio`.
+15. Trigger the GitHub Actions workflow manually, check whether `schedule` runs also appear, and confirm new `MonitorCheck` rows as described in [Automatic monitoring with Vercel Schedules](#automatic-monitoring-with-vercel-schedules) and [Automatic monitoring with GitHub Actions](#automatic-monitoring-with-github-actions).
 
 No database credentials are included in this repository, and no real database connectivity should be assumed until the environment variables above are set and these verification steps pass.
 
@@ -300,7 +345,8 @@ npm run start
 
 ```text
 .github/workflows/
-  pulsewatch-monitor.yml        Scheduled and manual monitoring trigger
+  pulsewatch-monitor.yml        Backup and manual monitoring trigger
+vercel.json                     Primary automatic scheduler configuration
 app/
   (dashboard)/                  Shared App Router shell and dashboard routes
   api/requests/execute/         Request execution API route
@@ -308,6 +354,7 @@ app/
   api/admin/                    Admin auth, monitor, check, and workspace APIs
   api/cron/monitor/             Scheduled check trigger
   api/internal/run-checks/      POST alias used by GitHub Actions
+  status/                       Standalone public status page
   layout.tsx                    Root layout and metadata
   page.tsx                      Redirects / to /dashboard
   not-found.tsx                 404 state
@@ -315,6 +362,7 @@ components/
   layout/                       Sidebar, topbar, search, menus, app shell
   dashboard/                    Live monitoring dashboard sections
   analytics/                    Analytics dashboard, charts, filters, and notices
+  status/                       Public status overview, uptime bars, and incident list
   monitors/                     Admin login, monitor manager, workspace migration UI
   requests/                     Request builder, editors, and response viewer
   collections/                  Saved request and collection management UI
@@ -327,6 +375,7 @@ lib/
   auth/                         Password, session, CSRF, rate-limit, and guards
   data/                         Public and admin database access functions
   monitoring/                   Config, schemas, metrics, analytics calculations, sanitization, SSRF, engine
+  status/                       Public status DTOs and derivation logic
   navigation.ts                 Nav groups, page metadata, quick actions
   mock-data.ts                  Phase 1 demo data and types only
   requests/                     Request schema, defaults, URL builder, client helper
@@ -342,5 +391,5 @@ generated/prisma/                Generated Prisma client (gitignored)
 scripts/
   create-admin.ts               First administrator bootstrap script
 tests/
-   *.test.ts                     Monitoring metrics, analytics calculations, sanitization, SSRF, and schema tests
+   *.test.ts                     Monitoring metrics, analytics/status calculations, sanitization, SSRF, and schema tests
 ```
