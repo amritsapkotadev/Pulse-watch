@@ -11,7 +11,7 @@ PulseWatch is a unified workspace for testing APIs, monitoring endpoint availabi
 - Real database-backed monitoring dashboard at `/dashboard`; no mock monitoring results are used
 - Public read-only APIs for monitor overview, monitors, incidents, and per-monitor history
 - Single-tenant admin panel at `/monitors` with hashed-password login, HTTP-only session cookies, CSRF/origin checks, and login rate limiting
-- Monitor create/edit/delete, server-side manual checks, scheduled due-check execution, and active incident tracking
+- Monitor create/edit/delete, server-side manual checks, GitHub Actions scheduled due-check execution, and active incident tracking
 - Neon PostgreSQL + Prisma schema with monitors, checks, incidents, leases, admin users, collections, saved requests, environments, and workspace state
 - Server-side SSRF validation, DNS pinning, redirect revalidation, sanitized failure messages, and bounded response reading reused from the request executor
 - DB lease to prevent overlapping checks, configurable failure threshold, incident creation after threshold, and automatic resolution on recovery
@@ -76,7 +76,7 @@ npm run dev
 
 Open [http://localhost:3000](http://localhost:3000). The root route redirects to `/dashboard`, the admin panel is at `/monitors`, and the request builder is at `/requests`.
 
-The generated Prisma client is written to `generated/prisma` and is gitignored. Run `npm run prisma:generate` after cloning, after changing `prisma/schema.prisma`, and before builds/deploys.
+The generated Prisma client is written to `generated/prisma` and is gitignored. The `build` script runs `prisma generate` automatically before `next build`, so deployments do not need the generated directory committed. Run `npm run prisma:generate` after cloning and after changing `prisma/schema.prisma`.
 
 ## Monitoring architecture
 
@@ -123,10 +123,54 @@ Admin-only:
 Cron:
 
 - `GET|POST /api/cron/monitor` with `Authorization: Bearer $CRON_SECRET` or `?secret=$CRON_SECRET`
+- `POST /api/internal/run-checks` with `Authorization: Bearer $CRON_SECRET` (POST alias of the cron handler used by GitHub Actions)
 
 All API responses use `{ ok: true, data }` or `{ ok: false, error }` and send no-store headers. Admin mutations require the `x-csrf-token` header returned by login/session and a same-origin `Origin`/`Referer` when present.
 
 With Cache Components enabled, Next.js uses the default Node.js runtime and rejects an explicit `runtime = "nodejs"` export, so API routes intentionally do not export a runtime value.
+
+## Automatic monitoring with GitHub Actions
+
+`.github/workflows/pulsewatch-monitor.yml` runs every five minutes and supports manual execution. It sends a `POST` request to `PULSEWATCH_APP_URL/api/internal/run-checks` with the exact header `Authorization: Bearer <CRON_SECRET>`. The secret is read from the GitHub repository secret store, never from the workflow file or URL, and the job fails if the endpoint returns a non-2xx response.
+
+### Configure GitHub
+
+1. In the repository, open **Settings → Secrets and variables → Actions → Variables → New repository variable**.
+2. Add `PULSEWATCH_APP_URL` with the deployed production origin as the value, for example `https://<your-domain>`. Do not include `/api` or a trailing slash.
+3. Open **Settings → Secrets and variables → Actions → Secrets → New repository secret**.
+4. Add `CRON_SECRET` with the same value configured in the deployed application environment. This value must be at least 16 characters.
+5. Push the workflow to the default branch. Scheduled runs start automatically every five minutes after GitHub enables the workflow.
+6. To trigger it manually, open **Actions → PulseWatch monitor → Run workflow**, choose the branch, and select **Run workflow**.
+
+### Inspect execution logs
+
+Open **Actions → PulseWatch monitor**, select a run, then open the **Run due monitor checks** job and the **Trigger PulseWatch checks** step. A successful request prints `Monitoring endpoint status: 200` and a summary such as `{ "due": 2, "executed": 2, "skipped": 0, "failed": 0 }`. A non-2xx response prints the status/body and fails the job.
+
+### Verify real data in Neon
+
+1. Before the first scheduled run, note the latest check time in Neon Studio or with `npm run db:studio`.
+2. After a successful run, query the database:
+
+```sql
+SELECT "monitorId", status, "statusCode", "responseTime", "checkedAt"
+FROM "MonitorCheck"
+ORDER BY "checkedAt" DESC
+LIMIT 20;
+```
+
+3. Confirm new rows appear for monitors whose `nextCheckAt` was due. If the endpoint returns `"due": 0`, nothing was scheduled yet and no new rows are expected.
+4. Confirm monitor state advanced:
+
+```sql
+SELECT id, name, "currentStatus", "lastCheckedAt", "nextCheckAt"
+FROM "Monitor"
+WHERE "isActive" = true
+ORDER BY "lastCheckedAt" DESC NULLS LAST;
+```
+
+5. Check `Incident` rows to confirm failures open/escalate after the configured threshold and recoveries resolve active incidents.
+
+No mock monitoring data is created. Do not assume scheduled monitoring works until a real GitHub Actions scheduled run has succeeded and new `MonitorCheck` rows are visible in Neon.
 
 ## Request execution
 
@@ -184,7 +228,7 @@ Before exposing this outside a trusted environment:
 3. Add audit logging that redacts credentials and sensitive response headers.
 4. Add real notification delivery through Resend and configure alert routing.
 5. Re-run a dedicated SSRF, DNS rebinding, redirect, and resource-exhaustion security review.
-6. Use a real scheduler with `CRON_SECRET`; no GitHub Actions workflow is configured yet.
+6. Confirm a real GitHub Actions scheduled run has succeeded before relying on automatic monitoring.
 
 LocalStorage `obf1:` encoding is obfuscation, not encryption. Database secrets are stored as plain text in Neon, so restrict database access and use a dedicated, least-privilege role.
 
@@ -211,6 +255,7 @@ Then verify saved real data:
 4. Open `/dashboard` and confirm stats/charts/incidents come from stored checks.
 5. Call `GET /api/public/monitors` and `GET /api/public/incidents`.
 6. Inspect `Monitor`, `MonitorCheck`, `Incident`, and `MonitorLease` rows in Neon Studio with `npm run db:studio`.
+7. Trigger the GitHub Actions workflow manually, wait for a scheduled run, and confirm new `MonitorCheck` rows as described in [Automatic monitoring with GitHub Actions](#automatic-monitoring-with-github-actions).
 
 No database credentials are included in this repository, and no real database connectivity should be assumed until the environment variables above are set and these verification steps pass.
 
@@ -227,12 +272,15 @@ npm run start
 ## Project structure
 
 ```text
+.github/workflows/
+  pulsewatch-monitor.yml        Scheduled and manual monitoring trigger
 app/
   (dashboard)/                  Shared App Router shell and dashboard routes
   api/requests/execute/         Request execution API route
   api/public/                   Public read-only monitoring APIs
   api/admin/                    Admin auth, monitor, check, and workspace APIs
   api/cron/monitor/             Scheduled check trigger
+  api/internal/run-checks/      POST alias used by GitHub Actions
   layout.tsx                    Root layout and metadata
   page.tsx                      Redirects / to /dashboard
   not-found.tsx                 404 state
