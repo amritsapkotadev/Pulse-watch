@@ -1,4 +1,4 @@
-import type { HistoryRange, MonitorStatusValue } from "@/lib/monitoring/types";
+import type { AnalyticsRange, MonitorStatusValue } from "@/lib/monitoring/types";
 
 export interface MetricCheck {
   status: MonitorStatusValue;
@@ -21,8 +21,8 @@ export function calculateAverageResponseTime(checks: Array<Pick<MetricCheck, "re
   return Math.round(values.reduce((sum, value) => sum + value, 0) / values.length);
 }
 
-export function rangeToStartDate(range: HistoryRange, now = new Date()): Date {
-  const hours = range === "24h" ? 24 : range === "7d" ? 24 * 7 : 24 * 30;
+export function rangeToStartDate(range: AnalyticsRange, now = new Date()): Date {
+  const hours = range === "24h" ? 24 : range === "7d" ? 24 * 7 : range === "30d" ? 24 * 30 : 24 * 90;
   return new Date(now.getTime() - hours * 60 * 60 * 1000);
 }
 

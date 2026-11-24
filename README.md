@@ -9,7 +9,8 @@ PulseWatch is a unified workspace for testing APIs, monitoring endpoint availabi
 - Next.js App Router, TypeScript, Tailwind CSS, shadcn/ui, Lucide icons, Recharts, and ESLint
 - Persistent dark sidebar, responsive mobile drawer, top navigation, workspace selector, search, notifications, help, and profile menus
 - Real database-backed monitoring dashboard at `/dashboard`; no mock monitoring results are used
-- Public read-only APIs for monitor overview, monitors, incidents, and per-monitor history
+- Public read-only APIs for monitor overview, monitors, incidents, per-monitor history, and monitoring analytics
+- Database-backed analytics at `/analytics` with range filters, uptime/failure/response-time metrics, incident analysis, monitor comparison, and per-monitor detail pages
 - Single-tenant admin panel at `/monitors` with hashed-password login, HTTP-only session cookies, CSRF/origin checks, and login rate limiting
 - Monitor create/edit/delete, server-side manual checks, GitHub Actions scheduled due-check execution, and active incident tracking
 - Neon PostgreSQL + Prisma schema with monitors, checks, incidents, leases, admin users, collections, saved requests, environments, and workspace state
@@ -108,6 +109,12 @@ Public read-only:
 - `GET /api/public/monitors?page=1&pageSize=25`
 - `GET /api/public/incidents?page=1&pageSize=25`
 - `GET /api/public/monitors/:id/history?range=24h|7d|30d`
+- `GET /api/public/analytics/overview?range=24h|7d|30d|90d`
+- `GET /api/public/analytics/uptime?range=24h|7d|30d|90d`
+- `GET /api/public/analytics/response-time?range=24h|7d|30d|90d`
+- `GET /api/public/analytics/incidents?range=24h|7d|30d|90d&page=1&pageSize=10`
+- `GET /api/public/analytics/monitors?range=24h|7d|30d|90d&page=1&pageSize=25&sort=name|uptimePercentage|averageResponseTimeMs|totalChecks|failedChecks&order=asc|desc&search=...`
+- `GET /api/public/monitors/:id/analytics?range=24h|7d|30d|90d`
 
 Admin-only:
 
@@ -125,9 +132,26 @@ Cron:
 - `GET|POST /api/cron/monitor` with `Authorization: Bearer $CRON_SECRET` or `?secret=$CRON_SECRET`
 - `POST /api/internal/run-checks` with `Authorization: Bearer $CRON_SECRET` (POST alias of the cron handler used by GitHub Actions)
 
-All API responses use `{ ok: true, data }` or `{ ok: false, error }` and send no-store headers. Admin mutations require the `x-csrf-token` header returned by login/session and a same-origin `Origin`/`Referer` when present.
+All API responses use `{ ok: true, data }` or `{ ok: false, error }`. Admin/cron/request routes send no-store headers; public analytics routes use a short public cache (`s-maxage=60`, `stale-while-revalidate=300`) while keeping the same JSON envelope. Admin mutations require the `x-csrf-token` header returned by login/session and a same-origin `Origin`/`Referer` when present.
 
 With Cache Components enabled, Next.js uses the default Node.js runtime and rejects an explicit `runtime = "nodejs"` export, so API routes intentionally do not export a runtime value.
+
+## Monitoring analytics
+
+`/analytics` is a read-only analytics workspace built only from persisted `MonitorCheck` and `Incident` rows for active monitors with `displayPublicly = true`. It adds no tables and requires no migration. All buckets and displayed timestamps are UTC, and the page shows the latest stored monitoring result. If checks are not running, analytics remain empty or stale; no mock results are generated.
+
+### Calculation methods
+
+- **Current status**: `currentStatus` from the latest stored monitor row (`UP`, `DOWN`, or `UNKNOWN` when no check has ever run).
+- **Historical uptime**: `successfulChecks / (successfulChecks + failedChecks)` for checks whose status is `UP` or `DOWN` inside the selected range. Other statuses, if any, are excluded from the denominator.
+- **No-data uptime**: `0%` when there are no determinate checks. It is never reported as `100%`.
+- **Failure rate**: `failedChecks / determinateChecks`, or `0%` with no determinate checks.
+- **Response time**: calculated only from `UP` checks with a finite `responseTime > 0`. Average, minimum, and maximum are reported from those samples; missing and failed samples are never interpolated.
+- **Time buckets**: `24h` uses one-hour UTC buckets; `7d`, `30d`, and `90d` use one-day UTC buckets.
+- **Incidents**: incidents are included when they started before the range end and either overlap the range or are still active. MTTR is the average resolution duration for resolved incidents; longest outage is the maximum incident duration. For active incidents, displayed duration is the overlap with the selected range.
+- **Most unreliable endpoints**: public monitors with stored history, ranked by failure rate and then failed-check count.
+
+The main page separates current status, historical uptime, historical response time, endpoint comparison, and failure/incident analytics. Each monitor row links to `/analytics/:id?range=...` for a detailed trend and incident timeline. The production domain is never hardcoded; deployed links use the existing configured origin.
 
 ## Automatic monitoring with GitHub Actions
 
@@ -254,8 +278,11 @@ Then verify saved real data:
 3. Click **Check** and confirm the monitor shows a stored status and last-checked time.
 4. Open `/dashboard` and confirm stats/charts/incidents come from stored checks.
 5. Call `GET /api/public/monitors` and `GET /api/public/incidents`.
-6. Inspect `Monitor`, `MonitorCheck`, `Incident`, and `MonitorLease` rows in Neon Studio with `npm run db:studio`.
-7. Trigger the GitHub Actions workflow manually, wait for a scheduled run, and confirm new `MonitorCheck` rows as described in [Automatic monitoring with GitHub Actions](#automatic-monitoring-with-github-actions).
+6. Open `/analytics`, switch between `24h`, `7d`, `30d`, and `90d`, and confirm metrics/charts change from the stored check rows.
+7. Call `GET /api/public/analytics/overview?range=30d`, `GET /api/public/analytics/uptime?range=30d`, `GET /api/public/analytics/response-time?range=30d`, `GET /api/public/analytics/incidents?range=30d`, and `GET /api/public/analytics/monitors?range=30d`.
+8. Open a monitor detail link from the endpoint comparison table and confirm the trend and incident timeline match that monitor.
+9. Inspect `Monitor`, `MonitorCheck`, `Incident`, and `MonitorLease` rows in Neon Studio with `npm run db:studio`.
+10. Trigger the GitHub Actions workflow manually, wait for a scheduled run, and confirm new `MonitorCheck` rows as described in [Automatic monitoring with GitHub Actions](#automatic-monitoring-with-github-actions).
 
 No database credentials are included in this repository, and no real database connectivity should be assumed until the environment variables above are set and these verification steps pass.
 
@@ -287,6 +314,7 @@ app/
 components/
   layout/                       Sidebar, topbar, search, menus, app shell
   dashboard/                    Live monitoring dashboard sections
+  analytics/                    Analytics dashboard, charts, filters, and notices
   monitors/                     Admin login, monitor manager, workspace migration UI
   requests/                     Request builder, editors, and response viewer
   collections/                  Saved request and collection management UI
@@ -298,7 +326,7 @@ lib/
   api/                          API response helpers
   auth/                         Password, session, CSRF, rate-limit, and guards
   data/                         Public and admin database access functions
-  monitoring/                   Config, schemas, metrics, sanitization, SSRF, engine
+  monitoring/                   Config, schemas, metrics, analytics calculations, sanitization, SSRF, engine
   navigation.ts                 Nav groups, page metadata, quick actions
   mock-data.ts                  Phase 1 demo data and types only
   requests/                     Request schema, defaults, URL builder, client helper
@@ -314,5 +342,5 @@ generated/prisma/                Generated Prisma client (gitignored)
 scripts/
   create-admin.ts               First administrator bootstrap script
 tests/
-  *.test.ts                     Monitoring metrics, sanitization, SSRF, and schema tests
+   *.test.ts                     Monitoring metrics, analytics calculations, sanitization, SSRF, and schema tests
 ```

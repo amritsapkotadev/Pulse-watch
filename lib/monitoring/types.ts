@@ -82,6 +82,170 @@ export const publicIncidentsResponseSchema = z.object({
 });
 export type PublicIncidentsResponse = z.output<typeof publicIncidentsResponseSchema>;
 
+export const analyticsRangeSchema = z.enum(["24h", "7d", "30d", "90d"]);
+export type AnalyticsRange = z.output<typeof analyticsRangeSchema>;
+export const DEFAULT_ANALYTICS_RANGE: AnalyticsRange = "30d";
+
+export const analyticsSortSchema = z.enum([
+  "name",
+  "uptimePercentage",
+  "averageResponseTimeMs",
+  "totalChecks",
+  "failedChecks",
+]);
+export type AnalyticsSort = z.output<typeof analyticsSortSchema>;
+
+export interface AnalyticsBucketDto {
+  bucket: string;
+  label: string;
+  totalChecks: number;
+  successfulChecks: number;
+  failedChecks: number;
+  uptimePercentage: number;
+  averageResponseTimeMs: number | null;
+  minResponseTimeMs: number | null;
+  maxResponseTimeMs: number | null;
+}
+
+export interface AnalyticsMonitorSummaryDto {
+  id: string;
+  name: string;
+  description: string;
+  currentStatus: MonitorStatusValue;
+  lastCheckedAt: string | null;
+  totalChecks: number;
+  successfulChecks: number;
+  failedChecks: number;
+  uptimePercentage: number;
+  failureRate: number;
+  averageResponseTimeMs: number | null;
+  minResponseTimeMs: number | null;
+  maxResponseTimeMs: number | null;
+  responseSampleCount: number;
+  hasHistory: boolean;
+}
+
+export interface AnalyticsIncidentDto {
+  id: string;
+  monitorId: string;
+  monitorName: string;
+  title: string;
+  severity: IncidentSeverityValue;
+  status: IncidentStatusValue;
+  startedAt: string;
+  resolvedAt: string | null;
+  durationMs: number;
+  overlapMs: number;
+}
+
+export interface AnalyticsOverviewDto {
+  range: AnalyticsRange;
+  generatedAt: string;
+  latestCheckAt: string | null;
+  stats: {
+    totalMonitors: number;
+    operationalMonitors: number;
+    downMonitors: number;
+    unknownMonitors: number;
+    monitorsWithHistory: number;
+    totalChecks: number;
+    successfulChecks: number;
+    failedChecks: number;
+    uptimePercentage: number;
+    failureRate: number;
+    averageResponseTimeMs: number | null;
+    minResponseTimeMs: number | null;
+    maxResponseTimeMs: number | null;
+    responseSampleCount: number;
+    totalIncidents: number;
+    mttrMs: number | null;
+    longestOutageMs: number | null;
+  };
+}
+
+export interface AnalyticsUptimeDto {
+  range: AnalyticsRange;
+  generatedAt: string;
+  overall: {
+    totalChecks: number;
+    successfulChecks: number;
+    failedChecks: number;
+    uptimePercentage: number;
+    hasHistory: boolean;
+  };
+  perMonitor: AnalyticsMonitorSummaryDto[];
+  trend: AnalyticsBucketDto[];
+}
+
+export interface AnalyticsResponseTimeDto {
+  range: AnalyticsRange;
+  generatedAt: string;
+  summary: {
+    averageResponseTimeMs: number | null;
+    minResponseTimeMs: number | null;
+    maxResponseTimeMs: number | null;
+    responseSampleCount: number;
+  };
+  trend: AnalyticsBucketDto[];
+  perMonitor: AnalyticsMonitorSummaryDto[];
+}
+
+export interface AnalyticsIncidentsDto {
+  range: AnalyticsRange;
+  generatedAt: string;
+  total: number;
+  mttrMs: number | null;
+  longestOutageMs: number | null;
+  mostUnreliable: AnalyticsMonitorSummaryDto[];
+  incidents: AnalyticsIncidentDto[];
+  page: number;
+  pageSize: number;
+}
+
+export interface AnalyticsMonitorsDto {
+  range: AnalyticsRange;
+  generatedAt: string;
+  total: number;
+  monitors: AnalyticsMonitorSummaryDto[];
+  page: number;
+  pageSize: number;
+}
+
+export interface AnalyticsBundleDto {
+  overview: AnalyticsOverviewDto;
+  uptime: AnalyticsUptimeDto;
+  responseTime: AnalyticsResponseTimeDto;
+  incidents: AnalyticsIncidentsDto;
+  monitors: AnalyticsMonitorsDto;
+}
+
+export interface MonitorAnalyticsDto {
+  range: AnalyticsRange;
+  generatedAt: string;
+  monitor: {
+    id: string;
+    name: string;
+    description: string;
+    currentStatus: MonitorStatusValue;
+    lastCheckedAt: string | null;
+  };
+  summary: {
+    totalChecks: number;
+    successfulChecks: number;
+    failedChecks: number;
+    uptimePercentage: number;
+    failureRate: number;
+    averageResponseTimeMs: number | null;
+    minResponseTimeMs: number | null;
+    maxResponseTimeMs: number | null;
+    responseSampleCount: number;
+    lastSuccessfulCheck: string | null;
+    lastFailedCheck: string | null;
+  };
+  trend: AnalyticsBucketDto[];
+  incidents: AnalyticsIncidentDto[];
+}
+
 export interface DashboardData {
   generatedAt: string;
   stats: {

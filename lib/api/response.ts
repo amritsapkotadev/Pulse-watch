@@ -45,3 +45,10 @@ export function noStoreHeaders(): HeadersInit {
     "X-Content-Type-Options": "nosniff",
   };
 }
+
+export function analyticsCacheHeaders(): HeadersInit {
+  return {
+    "Cache-Control": "public, s-maxage=60, stale-while-revalidate=300",
+    "X-Content-Type-Options": "nosniff",
+  };
+}

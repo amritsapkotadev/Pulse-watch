@@ -12,7 +12,7 @@ import { cn } from "@/lib/utils";
 
 export interface DataTableColumn<T> {
   id: string;
-  header: string;
+  header: ReactNode;
   cell: (row: T) => ReactNode;
   headerClassName?: string;
   cellClassName?: string;

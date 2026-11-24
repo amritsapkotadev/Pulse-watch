@@ -1,7 +1,11 @@
 import { z } from "zod";
 
 import { HTTP_METHODS } from "@/lib/requests/schema";
-import { historyRangeSchema } from "@/lib/monitoring/types";
+import {
+  analyticsRangeSchema,
+  analyticsSortSchema,
+  historyRangeSchema,
+} from "@/lib/monitoring/types";
 
 export const monitorWriteSchema = z
   .object({
@@ -29,3 +33,18 @@ export const historyQuerySchema = paginationQuerySchema.extend({
 });
 
 export const idParamSchema = z.object({ id: z.string().min(1) });
+
+export const analyticsRangeQuerySchema = z.object({
+  range: analyticsRangeSchema.default("30d"),
+});
+
+export const analyticsIncidentsQuerySchema = paginationQuerySchema.extend({
+  range: analyticsRangeSchema.default("30d"),
+});
+
+export const analyticsMonitorsQuerySchema = paginationQuerySchema.extend({
+  range: analyticsRangeSchema.default("30d"),
+  sort: analyticsSortSchema.default("name"),
+  order: z.enum(["asc", "desc"]).default("asc"),
+  search: z.string().trim().max(120).optional(),
+});
