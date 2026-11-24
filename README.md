@@ -2,7 +2,7 @@
 
 **Monitor. Test. Stay Ahead.**
 
-PulseWatch is a unified workspace for testing APIs, monitoring endpoint availability, tracking performance, and identifying failures. This repository contains **Phase 1: Project Foundation** plus **Phase 2: API Request Builder**.
+PulseWatch is a unified workspace for testing APIs, monitoring endpoint availability, tracking performance, and identifying failures. This repository contains **Phase 1: Project Foundation**, **Phase 2: API Request Builder**, and **Phase 3: Collections & Environments**.
 
 ## Included
 
@@ -17,9 +17,12 @@ PulseWatch is a unified workspace for testing APIs, monitoring endpoint availabi
   - Duplicate-submit prevention, validation messages, loading/error/empty states
 - Real HTTP execution through `POST /api/requests/execute`
 - Dev-only execution with SSRF, redirect, timeout, size, rate, and concurrency protections
+- Collections at `/collections` with saved requests, folders, rename/duplicate/delete, move between collections, and Postman v2.1 JSON import
+- Environments at `/environments` with `{{VARIABLE}}` interpolation in URLs, params, headers, auth, and bodies
+- Versioned localStorage persistence with corrupt-data backup and replaceable storage architecture
 - Placeholder pages for all other navigation destinations
 
-Save requests, collections, history, environments, authentication, monitors, alerts, database persistence, and third-party integrations are not included yet.
+History, monitors, alerts, authentication, database persistence, browser sync, team sharing, and third-party integrations are not included yet.
 
 ## Getting started
 
@@ -56,6 +59,20 @@ Useful public test endpoints include:
 - `https://jsonplaceholder.typicode.com/posts/1`
 
 Only test APIs you own or have explicit permission to test.
+
+## Collections and environments
+
+Collections and environments are stored in browser localStorage. Open a saved request from `/collections` to restore its full configuration in the request builder. The builder can save new requests, update an existing saved request, or save a copy into any collection or folder.
+
+Create an environment at `/environments`, add variables such as `BASE_URL` or `API_TOKEN`, and select it as active. Variables are resolved before a request is validated and sent. Missing variables are reported with the variable name and request location; nothing is sent in that case.
+
+Postman Collection v2.1 JSON import supports the common subset: nested folders, raw/object URLs, query params, headers, raw and urlencoded bodies, and bearer/basic/API key auth. Unsupported fields are reported after import. Imported requests are never executed automatically, and imported collection variables become a new environment without being activated.
+
+## Local storage and secrets
+
+Workspace data uses the versioned key `pulsewatch.workspace.v1`. Corrupt or incompatible data is backed up to a timestamped localStorage key and reset.
+
+Secret variables are obfuscated in localStorage with `obf1:` encoding. This is not encryption and does not protect data from anyone with access to the browser profile. Do not store sensitive production credentials in this tool, and do not rely on localStorage for sync, backup, or multi-user sharing. The storage API is isolated in `lib/storage/` and `components/providers/` so it can be replaced with PostgreSQL/Prisma later.
 
 ## Security limitations
 
@@ -104,6 +121,9 @@ components/
   layout/                   Sidebar, topbar, search, menus, app shell
   dashboard/                Overview dashboard sections
   requests/                 Request builder, editors, and response viewer
+  collections/              Saved request and collection management UI
+  environments/             Environment and variable management UI
+  providers/                Versioned workspace state provider
   shared/                   Reusable presentational components
   ui/                       shadcn/ui components
 lib/
@@ -111,6 +131,9 @@ lib/
   mock-data.ts              Phase 1 demo data and types
   requests/                 Request schema, defaults, URL builder, client helper
   server/                   Server-only HTTP executor and SSRF protections
+  storage/                  Workspace schemas, obfuscation, and localStorage adapter
+  postman/                  Postman Collection v2.1 import parser
+  variables/                Variable interpolation and missing-variable reporting
   utils.ts                  Shared class-name utility
 ```
 

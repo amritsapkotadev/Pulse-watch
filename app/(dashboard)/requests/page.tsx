@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import Link from "next/link";
 
 import { RequestBuilder } from "@/components/requests/request-builder";
 import { PageHeader } from "@/components/shared/page-header";
@@ -22,8 +23,8 @@ export default function RequestsPage() {
         description={item.description}
         eyebrow="API workspace"
         actions={
-          <Button variant="outline" disabled title="Saved requests are planned for a later phase">
-            Save Request
+          <Button render={<Link href="/collections" />} nativeButton={false} variant="outline">
+            View collections
           </Button>
         }
       />
