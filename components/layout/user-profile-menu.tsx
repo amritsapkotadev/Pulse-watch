@@ -7,6 +7,7 @@ import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import {
   DropdownMenu,
   DropdownMenuContent,
+  DropdownMenuGroup,
   DropdownMenuItem,
   DropdownMenuLabel,
   DropdownMenuSeparator,
@@ -61,14 +62,16 @@ export function UserProfileMenu({ variant = "sidebar" }: UserProfileMenuProps) {
         ) : null}
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end" className="w-60">
-        <DropdownMenuLabel className="py-2">
-          <span className="block text-sm font-medium text-foreground">
-            Alex Morgan
-          </span>
-          <span className="block text-xs font-normal text-muted-foreground">
-            alex@pulsewatch.demo
-          </span>
-        </DropdownMenuLabel>
+        <DropdownMenuGroup>
+          <DropdownMenuLabel className="py-2">
+            <span className="block text-sm font-medium text-foreground">
+              Alex Morgan
+            </span>
+            <span className="block text-xs font-normal text-muted-foreground">
+              alex@pulsewatch.demo
+            </span>
+          </DropdownMenuLabel>
+        </DropdownMenuGroup>
         <DropdownMenuSeparator />
         <DropdownMenuItem onSelect={() => router.push("/settings")}>
           <Settings2 className="size-4" aria-hidden="true" />
