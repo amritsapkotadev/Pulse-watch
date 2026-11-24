@@ -1,36 +1,57 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# PulseWatch
 
-## Getting Started
+**Monitor. Test. Stay Ahead.**
 
-First, run the development server:
+PulseWatch is a unified workspace for testing APIs, monitoring endpoint availability, tracking performance, and identifying failures. This repository currently contains **Phase 1: Project Foundation** only.
+
+## Phase 1 scope
+
+Included:
+
+- Next.js App Router, TypeScript, Tailwind CSS, shadcn/ui, Lucide icons, Recharts, and ESLint
+- Persistent dark sidebar, responsive mobile drawer, top navigation, workspace selector, search, notifications, help, and profile menus
+- Overview dashboard at `/dashboard` with clearly labeled mock data
+- Placeholder pages for all navigation destinations
+- Shared, reusable layout, dashboard, and UI components
+- Loading, error, and not-found states
+
+Not included yet: API testing, monitoring engines, database, authentication, email alerts, background jobs, or third-party integrations.
+
+## Getting started
 
 ```bash
+npm install
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Open [http://localhost:3000](http://localhost:3000). The root route redirects to `/dashboard`.
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+## Checks
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+```bash
+npm run lint
+npm run typecheck
+npm run build
+npm run start
+```
 
-## Learn More
+## Project structure
 
-To learn more about Next.js, take a look at the following resources:
+```text
+app/
+  (dashboard)/          Shared App Router shell and all dashboard routes
+  layout.tsx            Root layout and metadata
+  page.tsx              Redirects / to /dashboard
+  not-found.tsx         404 state
+components/
+  layout/               Sidebar, topbar, search, menus, app shell
+  dashboard/            Overview dashboard sections
+  shared/               Reusable presentational components
+  ui/                   shadcn/ui components
+lib/
+  navigation.ts         Nav groups, page metadata, quick actions
+  mock-data.ts          Phase 1 demo data and types
+  utils.ts              Shared class-name utility
+```
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
-
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
-
-## Deploy on Vercel
-
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+All dashboard numbers and API records are illustrative mock data, not live monitoring results.
