@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 
-import { PlaceholderPage } from "@/components/shared/placeholder-page";
+import { MonitorManager } from "@/components/monitors/monitor-manager";
 import { getNavItem } from "@/lib/navigation";
 
 const item = getNavItem("/monitors");
@@ -11,11 +11,5 @@ export const metadata: Metadata = {
 };
 
 export default function MonitorsPage() {
-  return (
-    <PlaceholderPage
-      item={item}
-      primaryAction={{ label: "View overview", href: "/dashboard" }}
-      secondaryAction={{ label: "See incidents", href: "/incidents" }}
-    />
-  );
+  return <MonitorManager />;
 }

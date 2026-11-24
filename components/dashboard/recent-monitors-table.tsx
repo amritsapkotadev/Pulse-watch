@@ -10,46 +10,45 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { DataTable, type DataTableColumn } from "@/components/shared/data-table";
-import { MockDataNote } from "@/components/shared/mock-data-note";
-import {
-  formatLabel,
-  monitorStatusTone,
-  StatusBadge,
-} from "@/components/shared/status-badge";
-import { recentMonitors, type MonitorRecord } from "@/lib/mock-data";
+import { formatLabel, StatusBadge, type StatusTone } from "@/components/shared/status-badge";
+import { formatRelativeTime } from "@/lib/monitoring/format";
+import type { PublicMonitorDto } from "@/lib/monitoring/types";
 
-const columns: DataTableColumn<MonitorRecord>[] = [
+const statusTone: Record<PublicMonitorDto["currentStatus"], StatusTone> = {
+  UP: "success",
+  DOWN: "danger",
+  UNKNOWN: "neutral",
+};
+
+const columns: DataTableColumn<PublicMonitorDto>[] = [
   {
     id: "name",
-    header: "Monitor Name",
+    header: "Monitor",
     cell: (row) => (
-      <div className="flex items-center gap-2">
-        <span className="flex size-7 shrink-0 items-center justify-center rounded-md bg-primary/10 text-[0.65rem] font-semibold text-primary">
-          {row.method}
-        </span>
+      <div className="space-y-0.5">
         <span className="font-medium text-foreground">{row.name}</span>
+        <span className="block max-w-[260px] truncate text-xs text-muted-foreground">
+          {row.description || "No description"}
+        </span>
       </div>
-    ),
-  },
-  {
-    id: "endpoint",
-    header: "Endpoint",
-    cell: (row) => (
-      <span
-        className="block max-w-[260px] truncate font-mono text-xs text-muted-foreground"
-        title={row.endpoint}
-      >
-        {row.endpoint}
-      </span>
     ),
   },
   {
     id: "status",
     header: "Status",
     cell: (row) => (
-      <StatusBadge tone={monitorStatusTone[row.status]}>
-        {formatLabel(row.status)}
+      <StatusBadge tone={statusTone[row.currentStatus]}>
+        {formatLabel(row.currentStatus)}
       </StatusBadge>
+    ),
+  },
+  {
+    id: "uptime",
+    header: "Uptime",
+    cell: (row) => (
+      <span className="text-sm tabular-nums text-foreground">
+        {row.uptimePercentage.toFixed(1)}%
+      </span>
     ),
   },
   {
@@ -57,7 +56,7 @@ const columns: DataTableColumn<MonitorRecord>[] = [
     header: "Response Time",
     cell: (row) => (
       <span className="text-sm tabular-nums text-foreground">
-        {row.status === "down" ? "—" : `${row.responseTimeMs} ms`}
+        {row.lastResponseTime === null ? "—" : `${row.lastResponseTime} ms`}
       </span>
     ),
   },
@@ -65,23 +64,26 @@ const columns: DataTableColumn<MonitorRecord>[] = [
     id: "checked",
     header: "Last Checked",
     cell: (row) => (
-      <span className="text-xs text-muted-foreground">{row.lastChecked}</span>
+      <span className="text-xs text-muted-foreground">
+        {formatRelativeTime(row.lastCheckedAt)}
+      </span>
     ),
   },
 ];
 
-export function RecentMonitorsTable() {
+interface RecentMonitorsTableProps {
+  monitors: PublicMonitorDto[];
+}
+
+export function RecentMonitorsTable({ monitors }: RecentMonitorsTableProps) {
   return (
     <Card className="gap-0 py-0">
       <CardHeader className="flex flex-row items-center gap-3 px-5 pt-5 pb-4">
         <div className="space-y-1">
           <CardTitle className="text-base">Recent Monitors</CardTitle>
-          <CardDescription>
-            Sample endpoints and their demo health status
-          </CardDescription>
+          <CardDescription>Live status from the shared monitor database</CardDescription>
         </div>
         <CardAction className="flex items-center gap-2">
-          <MockDataNote className="hidden sm:inline-flex" />
           <Button
             variant="link"
             size="sm"
@@ -89,15 +91,16 @@ export function RecentMonitorsTable() {
             nativeButton={false}
             className="px-0"
           >
-            View All Monitors
+            Manage Monitors
           </Button>
         </CardAction>
       </CardHeader>
       <CardContent className="px-0 pb-2">
         <DataTable
           columns={columns}
-          rows={recentMonitors}
-          caption="Recent monitors with mock data"
+          rows={monitors}
+          caption={monitors.length === 0 ? "No monitors have been configured yet." : "Live monitor status"}
+          emptyMessage="No monitors have been configured yet."
         />
       </CardContent>
     </Card>

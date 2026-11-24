@@ -1,0 +1,165 @@
+generator client {
+  provider = "prisma-client"
+  output   = "../generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+enum MonitorStatus {
+  UP
+  DOWN
+  UNKNOWN
+}
+
+enum IncidentSeverity {
+  INFO
+  WARNING
+  CRITICAL
+}
+
+enum IncidentStatus {
+  ACTIVE
+  RESOLVED
+}
+
+model Monitor {
+  id                String        @id @default(cuid())
+  name              String        @db.VarChar(120)
+  description       String        @default("") @db.VarChar(500)
+  url               String        @db.VarChar(2048)
+  method            String        @default("GET") @db.VarChar(16)
+  expectedStatus    Int           @default(200)
+  intervalMinutes   Int           @default(5)
+  timeoutSeconds    Int           @default(10)
+  isActive            Boolean       @default(true)
+  displayPublicly     Boolean       @default(true)
+  currentStatus       MonitorStatus @default(UNKNOWN)
+  lastCheckedAt       DateTime?
+  lastResponseTime    Int?
+  lastStatusCode      Int?
+  consecutiveFailures Int           @default(0)
+  statusChangedAt     DateTime      @default(now())
+  nextCheckAt         DateTime?
+  createdAt           DateTime      @default(now())
+  updatedAt         DateTime      @updatedAt
+  checks            MonitorCheck[]
+  incidents         Incident[]
+  lease             MonitorLease?
+
+  @@index([isActive, lastCheckedAt])
+  @@index([isActive, nextCheckAt])
+  @@index([displayPublicly, currentStatus])
+  @@index([createdAt])
+}
+
+model MonitorCheck {
+  id           String        @id @default(cuid())
+  monitorId    String
+  status       MonitorStatus
+  statusCode   Int?
+  responseTime Int
+  responseSize Int           @default(0)
+  errorMessage String?       @db.Text
+  checkedAt    DateTime      @default(now())
+  monitor      Monitor       @relation(fields: [monitorId], references: [id], onDelete: Cascade)
+
+  @@index([monitorId])
+  @@index([checkedAt])
+  @@index([monitorId, checkedAt])
+  @@index([status])
+}
+
+model Incident {
+  id          String           @id @default(cuid())
+  monitorId   String
+  title       String           @db.VarChar(200)
+  description String           @db.Text
+  severity    IncidentSeverity @default(WARNING)
+  status      IncidentStatus   @default(ACTIVE)
+  startedAt      DateTime         @default(now())
+  lastSeenAt     DateTime         @default(now())
+  occurrenceCount Int            @default(1)
+  resolvedAt     DateTime?
+  createdAt      DateTime         @default(now())
+  updatedAt   DateTime         @updatedAt
+  monitor     Monitor          @relation(fields: [monitorId], references: [id], onDelete: Cascade)
+
+  @@index([monitorId])
+  @@index([status, startedAt])
+  @@index([monitorId, status])
+}
+
+model AdminUser {
+  id           String   @id @default(cuid())
+  email        String   @unique @db.VarChar(320)
+  passwordHash String   @db.Text
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+}
+
+model MonitorLease {
+  monitorId  String   @id
+  ownerId    String   @db.VarChar(120)
+  acquiredAt DateTime @default(now())
+  expiresAt  DateTime
+  monitor    Monitor  @relation(fields: [monitorId], references: [id], onDelete: Cascade)
+
+  @@index([expiresAt])
+}
+
+model Collection {
+  id          String         @id
+  name        String         @db.VarChar(80)
+  description String         @default("") @db.VarChar(500)
+  createdAt   DateTime
+  updatedAt   DateTime
+  requests    SavedRequest[]
+
+  @@index([updatedAt])
+}
+
+model SavedRequest {
+  id          String     @id
+  collectionId String
+  folder      String     @default("") @db.VarChar(80)
+  name        String     @db.VarChar(120)
+  description String     @default("") @db.VarChar(500)
+  request     Json
+  createdAt   DateTime
+  updatedAt   DateTime
+  collection  Collection @relation(fields: [collectionId], references: [id], onDelete: Cascade)
+
+  @@index([collectionId])
+  @@index([updatedAt])
+}
+
+model Environment {
+  id          String               @id
+  name        String               @db.VarChar(80)
+  description String               @default("") @db.VarChar(500)
+  createdAt   DateTime
+  updatedAt   DateTime
+  variables   EnvironmentVariable[]
+
+  @@index([updatedAt])
+}
+
+model EnvironmentVariable {
+  id            String      @id
+  environmentId String
+  key           String      @db.VarChar(100)
+  value         String      @db.Text
+  secret        Boolean     @default(false)
+  environment   Environment @relation(fields: [environmentId], references: [id], onDelete: Cascade)
+
+  @@unique([environmentId, key])
+  @@index([environmentId])
+}
+
+model WorkspaceState {
+  id                 String  @id @default("singleton")
+  activeEnvironmentId String?
+  updatedAt          DateTime @updatedAt
+}

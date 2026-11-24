@@ -1,9 +1,18 @@
 import { Activity, CircleCheck, CircleX, Gauge } from "lucide-react";
 
 import { StatisticsCard } from "@/components/shared/statistics-card";
-import { dashboardStats } from "@/lib/mock-data";
+import type { DashboardData } from "@/lib/monitoring/types";
 
-export function StatsGrid() {
+interface StatsGridProps {
+  stats: DashboardData["stats"];
+}
+
+export function StatsGrid({ stats }: StatsGridProps) {
+  const operationalShare =
+    stats.totalMonitors > 0
+      ? Math.round((stats.operationalMonitors / stats.totalMonitors) * 100)
+      : 0;
+
   return (
     <section
       aria-label="Workspace statistics"
@@ -11,32 +20,29 @@ export function StatsGrid() {
     >
       <StatisticsCard
         label="Total Monitors"
-        value={String(dashboardStats.totalMonitors)}
-        description="Across 3 demo environments"
+        value={String(stats.totalMonitors)}
+        description="Public monitors configured in the database"
         icon={Activity}
         tone="primary"
-        change={{ value: "+3", label: "this month", direction: "up" }}
       />
       <StatisticsCard
         label="Operational"
-        value={String(dashboardStats.operational)}
-        description="87.5% of all monitors"
+        value={String(stats.operationalMonitors)}
+        description={`${operationalShare}% of all monitors`}
         icon={CircleCheck}
         tone="success"
-        change={{ value: "+2", label: "vs last week", direction: "up" }}
       />
       <StatisticsCard
         label="Down"
-        value={String(dashboardStats.down)}
-        description="Endpoints need attention"
+        value={String(stats.downMonitors)}
+        description="Monitors currently failing checks"
         icon={CircleX}
         tone="danger"
-        change={{ value: "-1", label: "since yesterday", direction: "down" }}
       />
       <StatisticsCard
         label="Average Response Time"
-        value={`${dashboardStats.averageResponseTimeMs} ms`}
-        description="Across all monitored endpoints"
+        value={`${stats.averageResponseTimeMs} ms`}
+        description="Across checks in the last 24 hours"
         icon={Gauge}
         tone="warning"
       />

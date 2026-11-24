@@ -141,7 +141,7 @@ function isBlockedHostname(hostname: string): boolean {
   );
 }
 
-function assertSafeIp(address: string): void {
+export function assertSafeIp(address: string): void {
   if (!ipaddr.isValid(address)) {
     throw new RequestExecutionError("unsafe_target", "Resolved address is not a valid IP.");
   }
@@ -162,13 +162,13 @@ function assertSafeIp(address: string): void {
   }
 }
 
-interface SafeAddress {
+export interface SafeAddress {
   address: string;
   family: 4 | 6;
   ttl: number;
 }
 
-async function resolveSafeAddresses(url: URL): Promise<SafeAddress[]> {
+export async function resolveSafeAddresses(url: URL): Promise<SafeAddress[]> {
   const hostname = normalizeHostname(url.hostname);
 
   if (!hostname || isBlockedHostname(hostname)) {
@@ -207,7 +207,7 @@ async function resolveSafeAddresses(url: URL): Promise<SafeAddress[]> {
   return records;
 }
 
-function validateTarget(url: URL): void {
+export function validateTarget(url: URL): void {
   if (url.protocol !== "http:" && url.protocol !== "https:") {
     throw new RequestExecutionError(
       "unsupported_protocol",
@@ -433,11 +433,23 @@ export function isExecutionErrorCode(value: string): value is ExecutionErrorCode
   return (EXECUTION_ERROR_CODES as readonly string[]).includes(value);
 }
 
+export interface ExecutionOptions {
+  timeoutMs?: number;
+  skipRateLimit?: boolean;
+  skipConcurrencyLimit?: boolean;
+}
+
 export async function executeHttpRequest(
   payload: ExecuteRequestPayload,
   clientKey: string,
+  options: ExecutionOptions = {},
 ): Promise<ExecutionResult> {
-  enforceRateLimit(clientKey);
+  if (!options.skipRateLimit) enforceRateLimit(clientKey);
+
+  const timeoutMs = Math.min(
+    120_000,
+    Math.max(1_000, Math.round(options.timeoutMs ?? TIMEOUT_MS)),
+  );
 
   let currentUrl: URL;
   try {
@@ -446,7 +458,7 @@ export async function executeHttpRequest(
     throw new RequestExecutionError("invalid_url", "Enter a valid http or https URL.");
   }
 
-  return withConcurrency(async () => {
+  const execute = async (): Promise<ExecutionResult> => {
     let method: HttpMethod = payload.method;
     let body = buildBody(payload, method);
     let headers = buildHeaders(payload, method);
@@ -457,9 +469,9 @@ export async function executeHttpRequest(
       const addresses = await resolveSafeAddresses(currentUrl);
 
       const dispatcher = new Agent({
-        connect: { timeout: CONNECT_TIMEOUT_MS },
-        headersTimeout: TIMEOUT_MS,
-        bodyTimeout: TIMEOUT_MS,
+        connect: { timeout: Math.min(CONNECT_TIMEOUT_MS, timeoutMs) },
+        headersTimeout: timeoutMs,
+        bodyTimeout: timeoutMs,
         keepAliveTimeout: 1_000,
       });
       const pinnedDispatcher = dispatcher.compose(
@@ -471,7 +483,7 @@ export async function executeHttpRequest(
       );
 
       const controller = new AbortController();
-      const timeout = setTimeout(() => controller.abort(), TIMEOUT_MS);
+      const timeout = setTimeout(() => controller.abort(), timeoutMs);
       const startedAt = performance.now();
 
       try {
@@ -498,8 +510,8 @@ export async function executeHttpRequest(
           body,
           dispatcher: pinnedDispatcher,
           signal: controller.signal,
-          headersTimeout: TIMEOUT_MS,
-          bodyTimeout: TIMEOUT_MS,
+          headersTimeout: timeoutMs,
+          bodyTimeout: timeoutMs,
         });
 
         const location = response.headers.location;
@@ -566,5 +578,7 @@ export async function executeHttpRequest(
     }
 
     throw new RequestExecutionError("unsafe_target", "The target redirected too many times.");
-  });
+  };
+
+  return options.skipConcurrencyLimit ? execute() : withConcurrency(execute);
 }
