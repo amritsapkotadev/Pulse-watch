@@ -12,7 +12,11 @@ import { getStatusSnapshot } from "@/lib/data/status";
 import { prisma } from "@/lib/db";
 import { rangeToStartDate } from "@/lib/monitoring/metrics";
 import type {
+  AnalyticsIncidentsDto,
+  AnalyticsMonitorSummaryDto,
   AnalyticsRange,
+  AnalyticsResponseTimeDto,
+  PublicDashboardAnalyticsDto,
   PublicDashboardDto,
   PublicDashboardIncidentDto,
   PublicDashboardMonitorDto,
@@ -28,7 +32,7 @@ export async function getPublicDashboardData(
     getAnalyticsUptime(range, now),
     getAnalyticsResponseTime(range, now),
     getStatusSnapshot("24h", now),
-    getAnalyticsIncidents(range, 1, 5, now),
+    getAnalyticsIncidents(range, 1, 100, now),
     getP95ResponseTime(range, now),
   ]);
 
@@ -51,7 +55,7 @@ export async function getPublicDashboardData(
   const statusIncidents = new Map(
     status.incidents.map((incident) => [incident.id, incident.occurrenceCount]),
   );
-  const publicIncidents: PublicDashboardIncidentDto[] = incidents.incidents.map((incident) => ({
+  const publicIncidents: PublicDashboardIncidentDto[] = incidents.incidents.slice(0, 5).map((incident) => ({
     id: incident.id,
     monitorId: incident.monitorId,
     monitorName: incident.monitorName,
@@ -85,8 +89,66 @@ export async function getPublicDashboardData(
     },
     uptimeTrend: uptime.trend,
     responseTrend: responseTime.trend,
+    analytics: buildDashboardAnalytics(
+      incidents,
+      uptime.perMonitor,
+      responseTime.summary,
+      status.overview.activeIncidents,
+    ),
     monitors,
     incidents: publicIncidents,
+  };
+}
+
+function buildDashboardAnalytics(
+  incidents: AnalyticsIncidentsDto,
+  monitors: AnalyticsMonitorSummaryDto[],
+  response: AnalyticsResponseTimeDto["summary"],
+  activeIncidents: number,
+): PublicDashboardAnalyticsDto {
+  const incidentCounts = new Map<string, number>();
+  for (const incident of incidents.incidents) {
+    incidentCounts.set(
+      incident.monitorName,
+      (incidentCounts.get(incident.monitorName) ?? 0) + 1,
+    );
+  }
+  const mostAffected = [...incidentCounts.entries()].sort(
+    (left, right) => right[1] - left[1] || left[0].localeCompare(right[0]),
+  )[0];
+  const slowest = monitors
+    .filter((monitor) => monitor.averageResponseTimeMs !== null)
+    .sort((left, right) => (right.averageResponseTimeMs ?? 0) - (left.averageResponseTimeMs ?? 0))[0];
+  const leastReliable = monitors
+    .filter((monitor) => monitor.totalChecks > 0)
+    .sort((left, right) => left.uptimePercentage - right.uptimePercentage)[0];
+
+  return {
+    totalIncidents: incidents.total,
+    activeIncidents,
+    resolvedIncidents: Math.max(0, incidents.total - activeIncidents),
+    meanTimeToResolveMs: incidents.mttrMs,
+    longestOutageMs: incidents.longestOutageMs,
+    responseSampleCount: response.responseSampleCount,
+    minResponseTimeMs: response.minResponseTimeMs,
+    maxResponseTimeMs: response.maxResponseTimeMs,
+    mostAffectedMonitor: mostAffected
+      ? { name: mostAffected[0], incidentCount: mostAffected[1] }
+      : null,
+    slowestMonitor: slowest
+      ? {
+          id: slowest.id,
+          name: slowest.name,
+          averageResponseTimeMs: slowest.averageResponseTimeMs ?? 0,
+        }
+      : null,
+    leastReliableMonitor: leastReliable
+      ? {
+          id: leastReliable.id,
+          name: leastReliable.name,
+          uptimePercentage: leastReliable.uptimePercentage,
+        }
+      : null,
   };
 }
 

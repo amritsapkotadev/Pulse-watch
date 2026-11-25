@@ -6,7 +6,7 @@ Deployed public origin: `https://health.nepsesuchana.qzz.io`
 
 ## Overview
 
-- Public overview: current health, uptime, response-time trend, P95 latency, failed checks, incidents, and a paginated monitor table.
+- Public overview: current health, uptime and response-time charts, P95 latency, failed checks, latency/reliability/incident analytics, and a paginated monitor table.
 - Public status page: detailed availability bars, current service state, and incident history.
 - Admin workspace: dashboard, analytics, monitors, incidents, API tester, collections, environments, check history, and settings.
 - No demo or mock monitoring data. If the database is not configured or has no checks, the UI says so.

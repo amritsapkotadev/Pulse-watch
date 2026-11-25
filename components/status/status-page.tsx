@@ -187,7 +187,7 @@ export function StatusPage({ initialSnapshot }: { initialSnapshot: StatusSnapsho
   return (
     <div className="min-h-screen bg-[#f8fafc] text-foreground">
       <PublicHeader />
-      <main className="mx-auto w-full max-w-7xl px-4 py-8 sm:px-6 sm:py-10 lg:px-8">
+      <main className="mx-auto w-full max-w-[1400px] px-4 py-8 sm:px-6 sm:py-10 lg:px-8">
         <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
           <div className="space-y-1.5">
             <p className="text-xs font-semibold tracking-wider text-primary uppercase">Public status</p>

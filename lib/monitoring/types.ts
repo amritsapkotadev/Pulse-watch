@@ -291,6 +291,20 @@ export interface PublicDashboardIncidentDto {
   occurrenceCount: number;
 }
 
+export interface PublicDashboardAnalyticsDto {
+  totalIncidents: number;
+  activeIncidents: number;
+  resolvedIncidents: number;
+  meanTimeToResolveMs: number | null;
+  longestOutageMs: number | null;
+  responseSampleCount: number;
+  minResponseTimeMs: number | null;
+  maxResponseTimeMs: number | null;
+  mostAffectedMonitor: { name: string; incidentCount: number } | null;
+  slowestMonitor: { id: string; name: string; averageResponseTimeMs: number } | null;
+  leastReliableMonitor: { id: string; name: string; uptimePercentage: number } | null;
+}
+
 export interface PublicDashboardDto {
   range: AnalyticsRange;
   generatedAt: string;
@@ -312,6 +326,7 @@ export interface PublicDashboardDto {
   };
   uptimeTrend: AnalyticsBucketDto[];
   responseTrend: AnalyticsBucketDto[];
+  analytics: PublicDashboardAnalyticsDto;
   monitors: PublicDashboardMonitorDto[];
   incidents: PublicDashboardIncidentDto[];
 }
