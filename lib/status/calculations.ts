@@ -52,3 +52,16 @@ export function statusLabel(state: StatusServiceState | StatusOverallState | Sta
       return "No data";
   }
 }
+
+export function overallStatusMessage(state: StatusOverallState): string {
+  switch (state) {
+    case "OPERATIONAL":
+      return "All Systems Operational.";
+    case "DEGRADED":
+      return "Partial System Degradation.";
+    case "OUTAGE":
+      return "Major System Outage.";
+    case "NO_DATA":
+      return "Monitoring Data Delayed.";
+  }
+}

@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 
+import { authorizeAdmin } from "@/lib/auth/guard";
 import {
   executeRequestSchema,
   type ExecutionErrorCode,
@@ -20,6 +21,9 @@ function errorResponse(code: ExecutionErrorCode, message: string, status: number
 }
 
 export async function POST(request: Request) {
+  const auth = await authorizeAdmin(request);
+  if (auth instanceof Response) return auth;
+
   if (process.env.NODE_ENV === "production") {
     return errorResponse(
       "disabled",

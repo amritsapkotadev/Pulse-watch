@@ -9,8 +9,6 @@ import {
   Send,
   Settings2,
   SlidersHorizontal,
-  Upload,
-  PlusCircle,
   ArrowUpRight,
   type LucideIcon,
 } from "lucide-react";
@@ -20,8 +18,7 @@ export interface NavItem {
   href: string;
   description: string;
   icon: LucideIcon;
-  phase: "Phase 2" | "Phase 3";
-  plannedFeatures: string[];
+  external?: boolean;
 }
 
 export interface NavGroup {
@@ -31,56 +28,55 @@ export interface NavGroup {
 
 export const navigationGroups: NavGroup[] = [
   {
-    label: "Workspace",
+    label: "Overview",
     items: [
       {
-        title: "Overview",
+        title: "Dashboard",
         href: "/dashboard",
-        description: "Workspace health and recent activity at a glance.",
+        description: "Monitor health and recent activity across configured endpoints.",
         icon: LayoutDashboard,
-        phase: "Phase 2",
-        plannedFeatures: [
-          "Live data sourced from your monitors",
-          "Customizable dashboard widgets",
-          "Workspace-wide health summaries",
-        ],
       },
       {
-        title: "API Requests",
+        title: "Analytics",
+        href: "/analytics",
+        description: "Historical uptime, latency, and reliability analytics.",
+        icon: BarChart3,
+      },
+      {
+        title: "Public Status",
+        href: "/status",
+        description: "Open the public, read-only status page.",
+        icon: Globe2,
+        external: true,
+      },
+    ],
+  },
+  {
+    label: "API Tools",
+    items: [
+      {
+        title: "API Tester",
         href: "/requests",
-        description: "Build and send HTTP requests from a shared workspace.",
+        description: "Build and inspect HTTP requests.",
         icon: Send,
-        phase: "Phase 2",
-        plannedFeatures: [
-          "GET, POST, PUT, PATCH, and DELETE request builder",
-          "Headers, query parameters, auth, and request bodies",
-          "Response viewer with status, timing, and body inspection",
-          "Automated assertions on responses",
-        ],
       },
       {
         title: "Collections",
         href: "/collections",
-        description: "Organize requests into reusable, shareable collections.",
+        description: "Organize saved requests into collections.",
         icon: Folder,
-        phase: "Phase 2",
-        plannedFeatures: [
-          "Nested folders and saved requests",
-          "Postman collection import",
-          "Collection-level variables and scripts",
-        ],
       },
       {
-        title: "Request History",
+        title: "Environments",
+        href: "/environments",
+        description: "Manage reusable variables for each environment.",
+        icon: SlidersHorizontal,
+      },
+      {
+        title: "History",
         href: "/history",
-        description: "Review previously sent requests and their responses.",
+        description: "Review recent stored monitoring checks.",
         icon: History,
-        phase: "Phase 2",
-        plannedFeatures: [
-          "Searchable request timeline",
-          "Response snapshots and timing details",
-          "Re-run a previous request",
-        ],
       },
     ],
   },
@@ -90,87 +86,31 @@ export const navigationGroups: NavGroup[] = [
       {
         title: "Monitors",
         href: "/monitors",
-        description: "Configure scheduled endpoint availability checks.",
+        description: "Create and configure availability checks.",
         icon: Activity,
-        phase: "Phase 2",
-        plannedFeatures: [
-          "Scheduled endpoint checks",
-          "Uptime calculations and response-time tracking",
-          "Per-monitor alert settings",
-        ],
       },
       {
         title: "Incidents",
         href: "/incidents",
-        description: "Track failures from detection through resolution.",
+        description: "Review detected incidents and their resolution state.",
         icon: AlertTriangle,
-        phase: "Phase 2",
-        plannedFeatures: [
-          "Automatic incident detection",
-          "Severity and status workflows",
-          "Incident timelines and resolution notes",
-        ],
-      },
-      {
-        title: "Analytics",
-        href: "/analytics",
-        description: "Explore uptime, latency, and reliability trends.",
-        icon: BarChart3,
-        phase: "Phase 3",
-        plannedFeatures: [
-          "Historical uptime reporting",
-          "Response-time percentiles",
-          "Failure rate breakdowns by endpoint",
-        ],
-      },
-      {
-        title: "Status Page",
-        href: "/status",
-        description: "Open the public, real-time view of service health.",
-        icon: Globe2,
-        phase: "Phase 3",
-        plannedFeatures: [
-          "Public status view from stored checks",
-          "Component-level status and incident updates",
-          "Custom branding and domain settings",
-        ],
       },
     ],
   },
   {
-    label: "Configuration",
+    label: "System",
     items: [
-      {
-        title: "Environments",
-        href: "/environments",
-        description: "Manage variables and endpoints for each stage.",
-        icon: SlidersHorizontal,
-        phase: "Phase 2",
-        plannedFeatures: [
-          "Development, staging, and production variables",
-          "Scoped secrets with masked values",
-          "Environment switching inside the request builder",
-        ],
-      },
       {
         title: "Settings",
         href: "/settings",
-        description: "Configure workspace preferences and integrations.",
+        description: "Administrator account, monitoring configuration, and public links.",
         icon: Settings2,
-        phase: "Phase 3",
-        plannedFeatures: [
-          "Workspace profile and member roles",
-          "Email notification preferences",
-          "Neon, Prisma, and Resend integration setup",
-        ],
       },
     ],
   },
 ];
 
-export const navigationItems: NavItem[] = navigationGroups.flatMap(
-  (group) => group.items,
-);
+export const navigationItems: NavItem[] = navigationGroups.flatMap((group) => group.items);
 
 export const navItemsByHref: Record<string, NavItem> = Object.fromEntries(
   navigationItems.map((item) => [item.href, item]),
@@ -192,7 +132,7 @@ export const quickActions: QuickAction[] = [
     title: "Create Monitor",
     description: "Watch a new endpoint",
     href: "/monitors",
-    icon: PlusCircle,
+    icon: Activity,
   },
   {
     title: "New API Request",
@@ -201,15 +141,15 @@ export const quickActions: QuickAction[] = [
     icon: Send,
   },
   {
-    title: "Import Collection",
-    description: "Bring in a Postman file",
-    href: "/collections",
-    icon: Upload,
-  },
-  {
     title: "View Analytics",
     description: "Explore performance trends",
     href: "/analytics",
+    icon: BarChart3,
+  },
+  {
+    title: "Public Status",
+    description: "Open the public status page",
+    href: "/status",
     icon: ArrowUpRight,
   },
 ];
@@ -220,34 +160,33 @@ export interface PageMeta {
   breadcrumb: string[];
 }
 
-export const pageMeta: Record<string, PageMeta> = {
-  "/dashboard": {
-    title: "Overview",
-    description: "Workspace health and recent activity at a glance.",
-    breadcrumb: ["Workspace", "Overview"],
-  },
-  ...Object.fromEntries(
-    navigationItems.map((item) => [
-      item.href,
-      {
-        title: item.title,
-        description: item.description,
-        breadcrumb: [
-          navigationGroups.find((group) => group.items.includes(item))?.label ??
-            "Workspace",
-          item.title,
-        ],
-      },
-    ]),
-  ),
+export const pageMeta: Record<string, PageMeta> = Object.fromEntries(
+  navigationItems.map((item) => [
+    item.href,
+    {
+      title: item.title,
+      description: item.description,
+      breadcrumb: [
+        navigationGroups.find((group) => group.items.includes(item))?.label ?? "PulseWatch",
+        item.title,
+      ],
+    },
+  ]),
+);
+
+pageMeta["/analytics/"] = {
+  title: "Monitor analytics",
+  description: "Historical analytics for an individual public API monitor.",
+  breadcrumb: ["Overview", "Analytics", "Monitor"],
 };
 
 export function getPageMeta(pathname: string): PageMeta {
+  if (pathname.startsWith("/analytics/")) return pageMeta["/analytics/"];
   return (
     pageMeta[pathname] ?? {
       title: "PulseWatch",
-      description: "Monitor. Test. Stay Ahead.",
-      breadcrumb: ["Workspace", "PulseWatch"],
+      description: "API monitoring and uptime analytics.",
+      breadcrumb: ["PulseWatch"],
     }
   );
 }

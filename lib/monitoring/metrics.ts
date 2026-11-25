@@ -16,7 +16,7 @@ export function calculateUptime(checks: Array<Pick<MetricCheck, "status">>): num
 export function calculateAverageResponseTime(checks: Array<Pick<MetricCheck, "responseTime">>): number {
   const values = checks
     .map((check) => check.responseTime)
-    .filter((value) => Number.isFinite(value) && value >= 0);
+    .filter((value) => Number.isFinite(value) && value > 0);
   if (values.length === 0) return 0;
   return Math.round(values.reduce((sum, value) => sum + value, 0) / values.length);
 }

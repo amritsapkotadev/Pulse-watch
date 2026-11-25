@@ -26,6 +26,7 @@ describe("monitoring metrics", () => {
         { responseTime: 100 },
         { responseTime: 200 },
         { responseTime: -1 },
+        { responseTime: 0 },
       ]),
     ).toBe(150);
     expect(calculateAverageResponseTime([])).toBe(0);

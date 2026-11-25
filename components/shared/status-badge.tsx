@@ -2,11 +2,6 @@ import type { ReactNode } from "react";
 
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
-import type {
-  IncidentSeverity,
-  IncidentStatus,
-  MonitorStatus,
-} from "@/lib/mock-data";
 
 export type StatusTone =
   | "success"
@@ -62,26 +57,6 @@ export function StatusBadge({
     </Badge>
   );
 }
-
-export const monitorStatusTone: Record<MonitorStatus, StatusTone> = {
-  operational: "success",
-  degraded: "warning",
-  down: "danger",
-};
-
-export const incidentStatusTone: Record<IncidentStatus, StatusTone> = {
-  investigating: "danger",
-  identified: "warning",
-  monitoring: "info",
-  resolved: "success",
-};
-
-export const severityTone: Record<IncidentSeverity, StatusTone> = {
-  critical: "danger",
-  high: "danger",
-  medium: "warning",
-  low: "info",
-};
 
 export function formatLabel(value: string): string {
   return value.charAt(0).toUpperCase() + value.slice(1);

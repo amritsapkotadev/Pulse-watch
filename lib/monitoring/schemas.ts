@@ -33,6 +33,7 @@ export const historyQuerySchema = paginationQuerySchema.extend({
 });
 
 export const idParamSchema = z.object({ id: z.string().min(1) });
+export const monitorIdParamSchema = z.object({ monitorId: z.string().min(1) });
 
 export const analyticsRangeQuerySchema = z.object({
   range: analyticsRangeSchema.default("30d"),

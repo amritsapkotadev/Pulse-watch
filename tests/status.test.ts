@@ -4,6 +4,7 @@ import {
   deriveBucketState,
   deriveOverallState,
   deriveServiceState,
+  overallStatusMessage,
   statusLabel,
 } from "@/lib/status/calculations";
 import { statusIncidentsQuerySchema, statusRangeQuerySchema } from "@/lib/monitoring/schemas";
@@ -31,6 +32,13 @@ describe("status calculations", () => {
     expect(deriveBucketState(1, 0, 1)).toBe("UP");
     expect(deriveBucketState(0, 2, 2)).toBe("DOWN");
     expect(deriveBucketState(3, 1, 4)).toBe("DEGRADED");
+  });
+
+  it("uses exact public status messages", () => {
+    expect(overallStatusMessage("OPERATIONAL")).toBe("All Systems Operational.");
+    expect(overallStatusMessage("DEGRADED")).toBe("Partial System Degradation.");
+    expect(overallStatusMessage("OUTAGE")).toBe("Major System Outage.");
+    expect(overallStatusMessage("NO_DATA")).toBe("Monitoring Data Delayed.");
   });
 
   it("uses public-friendly status labels", () => {

@@ -14,11 +14,11 @@ const geistMono = Geist_Mono({
 
 export const metadata: Metadata = {
   title: {
-    default: "PulseWatch — Monitor. Test. Stay Ahead.",
+    default: "PulseWatch — API monitoring",
     template: "%s | PulseWatch",
   },
   description:
-    "A unified workspace for testing APIs, monitoring endpoint availability, tracking performance, and identifying failures.",
+    "Public service health, status, and uptime monitoring with an admin-only API workspace.",
   applicationName: "PulseWatch",
 };
 

@@ -3,7 +3,7 @@
 import {
   Activity,
   AlertTriangle,
-  ArrowUpRight,
+  ArrowRight,
   CheckCircle2,
   Clock3,
   Gauge,
@@ -22,7 +22,8 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
-import { statusLabel } from "@/lib/status/calculations";
+import { PublicHeader } from "@/components/shared/public-header";
+import { overallStatusMessage, statusLabel } from "@/lib/status/calculations";
 import { formatDateTime, formatDuration } from "@/lib/monitoring/format";
 import type {
   StatusBucketState,
@@ -79,47 +80,47 @@ const stateStyles: Record<
   { dot: string; pill: string; banner: string }
 > = {
   UP: {
-    dot: "bg-emerald-500",
-    pill: "border-emerald-200 bg-emerald-50 text-emerald-700",
-    banner: "border-emerald-200 bg-emerald-50",
+    dot: "bg-success",
+    pill: "border-success/25 bg-success/10 text-success",
+    banner: "border-success/25 bg-success/10",
   },
   OPERATIONAL: {
-    dot: "bg-emerald-500",
-    pill: "border-emerald-200 bg-emerald-50 text-emerald-700",
-    banner: "border-emerald-200 bg-emerald-50",
+    dot: "bg-success",
+    pill: "border-success/25 bg-success/10 text-success",
+    banner: "border-success/25 bg-success/10",
   },
   DEGRADED: {
-    dot: "bg-amber-500",
-    pill: "border-amber-200 bg-amber-50 text-amber-800",
-    banner: "border-amber-200 bg-amber-50",
+    dot: "bg-warning",
+    pill: "border-warning/30 bg-warning/10 text-warning",
+    banner: "border-warning/30 bg-warning/10",
   },
   DOWN: {
-    dot: "bg-red-500",
-    pill: "border-red-200 bg-red-50 text-red-700",
-    banner: "border-red-200 bg-red-50",
+    dot: "bg-danger",
+    pill: "border-danger/25 bg-danger/10 text-danger",
+    banner: "border-danger/25 bg-danger/10",
   },
   OUTAGE: {
-    dot: "bg-red-500",
-    pill: "border-red-200 bg-red-50 text-red-700",
-    banner: "border-red-200 bg-red-50",
+    dot: "bg-danger",
+    pill: "border-danger/25 bg-danger/10 text-danger",
+    banner: "border-danger/25 bg-danger/10",
   },
   UNKNOWN: {
-    dot: "bg-slate-400",
-    pill: "border-slate-200 bg-slate-100 text-slate-600",
-    banner: "border-slate-200 bg-slate-100",
+    dot: "bg-muted-foreground",
+    pill: "border-border bg-muted text-muted-foreground",
+    banner: "border-border bg-muted",
   },
   NO_DATA: {
-    dot: "bg-slate-400",
-    pill: "border-slate-200 bg-slate-100 text-slate-600",
-    banner: "border-slate-200 bg-slate-100",
+    dot: "bg-muted-foreground",
+    pill: "border-border bg-muted text-muted-foreground",
+    banner: "border-border bg-muted",
   },
 };
 
 const bucketStyles: Record<StatusBucketState, string> = {
-  UP: "bg-emerald-500",
-  DEGRADED: "bg-amber-400",
-  DOWN: "bg-red-500",
-  UNKNOWN: "border border-dashed border-slate-300 bg-slate-100",
+  UP: "bg-success",
+  DEGRADED: "bg-warning",
+  DOWN: "bg-danger",
+  UNKNOWN: "border border-dashed border-border bg-muted",
 };
 
 async function fetchSnapshot(range: StatusRange, signal?: AbortSignal): Promise<StatusSnapshotDto> {
@@ -184,25 +185,25 @@ export function StatusPage({ initialSnapshot }: { initialSnapshot: StatusSnapsho
   const bannerStyle = stateStyles[overview.status];
 
   return (
-    <main className="min-h-screen bg-[#f8fafc] text-slate-900">
-      <div className="mx-auto w-full max-w-6xl px-4 py-8 sm:px-6 sm:py-12">
-        <header className="flex flex-col gap-6 sm:flex-row sm:items-center sm:justify-between">
-          <div className="flex items-center gap-3">
-            <span className="flex size-11 items-center justify-center rounded-xl bg-indigo-600 text-white shadow-sm">
-              <Activity className="size-6" aria-hidden="true" />
-            </span>
-            <div>
-              <p className="text-lg font-semibold tracking-tight text-slate-900">PulseWatch</p>
-              <p className="text-xs text-slate-500">Monitor. Test. Stay Ahead.</p>
-            </div>
+    <div className="min-h-screen bg-[#f8fafc] text-foreground">
+      <PublicHeader />
+      <main className="mx-auto w-full max-w-7xl px-4 py-8 sm:px-6 sm:py-10 lg:px-8">
+        <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
+          <div className="space-y-1.5">
+            <p className="text-xs font-semibold tracking-wider text-primary uppercase">Public status</p>
+            <h1 className="text-2xl font-semibold tracking-tight sm:text-3xl">Service health</h1>
+            <p className="max-w-2xl text-sm text-muted-foreground">
+              Availability and incident information derived from stored monitor checks. All times
+              are UTC.
+            </p>
           </div>
-          <div className="flex flex-wrap items-center gap-3 text-sm text-slate-500">
-            <span className="inline-flex items-center gap-1.5">
+          <div className="flex flex-wrap items-center gap-3">
+            <span className="inline-flex items-center gap-1.5 text-xs text-muted-foreground">
               <Clock3 className="size-4" aria-hidden="true" />
               Updated {lastUpdated} UTC · {age}
             </span>
             <button
-              className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 font-medium text-slate-700 shadow-sm hover:bg-slate-50 disabled:opacity-60"
+              className="inline-flex items-center gap-1.5 rounded-lg border border-border bg-white px-2.5 py-1.5 text-sm font-medium text-foreground transition-colors hover:bg-muted disabled:opacity-60"
               disabled={loading}
               onClick={() => void refresh(range)}
               type="button"
@@ -215,21 +216,9 @@ export function StatusPage({ initialSnapshot }: { initialSnapshot: StatusSnapsho
               Refresh
             </button>
           </div>
-        </header>
+        </div>
 
-        <div className="mt-10">
-          <div className="mb-6">
-            <p className="text-xs font-semibold tracking-[0.18em] text-indigo-600 uppercase">
-              Public status
-            </p>
-            <h1 className="mt-1 text-3xl font-semibold tracking-tight text-slate-900 sm:text-4xl">
-              Service health
-            </h1>
-            <p className="mt-2 max-w-2xl text-sm text-slate-600">
-              Live availability and incident information derived from stored PulseWatch monitor
-              checks. All times are UTC.
-            </p>
-          </div>
+        <div className="mt-6">
 
           {error ? (
             <div
@@ -259,20 +248,14 @@ export function StatusPage({ initialSnapshot }: { initialSnapshot: StatusSnapsho
                 <span className={`size-3 rounded-full ${bannerStyle.dot}`} aria-hidden="true" />
                 <div>
                   <p className="text-sm font-medium text-slate-600">Overall system status</p>
-                  <p className="text-2xl font-semibold tracking-tight text-slate-900">
-                    {statusLabel(overview.status)}
-                  </p>
-                </div>
+                <p className="text-xl font-semibold tracking-tight text-foreground">
+                  {statusLabel(overview.status)}
+                </p>
               </div>
-              <p className="max-w-md text-sm text-slate-600">
-                {overview.status === "OPERATIONAL"
-                  ? "All public services recorded successful checks."
-                  : overview.status === "DEGRADED"
-                    ? "One or more services recorded recent failures but are currently reachable."
-                    : overview.status === "OUTAGE"
-                      ? "One or more services are currently down."
-                      : "No stored check results are available yet."}
-              </p>
+            </div>
+            <p className="max-w-md text-sm text-muted-foreground">
+              {overallStatusMessage(overview.status)}
+            </p>
             </div>
           </section>
 
@@ -420,15 +403,15 @@ export function StatusPage({ initialSnapshot }: { initialSnapshot: StatusSnapsho
         <footer className="mt-14 flex flex-col gap-3 border-t border-slate-200 pt-6 text-sm text-slate-500 sm:flex-row sm:items-center sm:justify-between">
           <span>© {overview.generatedAt.slice(0, 4)} PulseWatch · Monitor. Test. Stay Ahead.</span>
           <Link
-            className="inline-flex items-center gap-1.5 font-medium text-indigo-600 hover:text-indigo-800"
-            href="/dashboard"
+            className="inline-flex items-center gap-1.5 font-medium text-primary hover:underline"
+            href="/login"
           >
-            Back to dashboard
-            <ArrowUpRight className="size-4" aria-hidden="true" />
+            Admin sign in
+            <ArrowRight className="size-4" aria-hidden="true" />
           </Link>
         </footer>
-      </div>
-    </main>
+      </main>
+    </div>
   );
 }
 

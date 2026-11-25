@@ -72,13 +72,14 @@ import { interpolateRequest } from "@/lib/variables/interpolate";
 
 interface RequestBuilderProps {
   executionEnabled: boolean;
+  csrfToken: string;
 }
 
 interface RequestBuilderFormProps extends RequestBuilderProps {
   initialSavedRequest: SavedRequest | null;
 }
 
-export function RequestBuilder({ executionEnabled }: RequestBuilderProps) {
+export function RequestBuilder({ executionEnabled, csrfToken }: RequestBuilderProps) {
   const { hydrated, requests, pendingRequest } = useWorkspace();
 
   if (!hydrated) {
@@ -100,6 +101,7 @@ export function RequestBuilder({ executionEnabled }: RequestBuilderProps) {
     <RequestBuilderForm
       key={formKey}
       executionEnabled={executionEnabled}
+      csrfToken={csrfToken}
       initialSavedRequest={savedRequest}
     />
   );
@@ -107,6 +109,7 @@ export function RequestBuilder({ executionEnabled }: RequestBuilderProps) {
 
 function RequestBuilderForm({
   executionEnabled,
+  csrfToken,
   initialSavedRequest,
 }: RequestBuilderFormProps) {
   const {
@@ -259,7 +262,7 @@ function RequestBuilderForm({
 
     setLoading(true);
     try {
-      const response = await executeRequest(parsed.data);
+      const response = await executeRequest(parsed.data, csrfToken);
       if (response.ok) {
         setResult(response.data);
         setResponseTab("pretty");

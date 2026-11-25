@@ -2,11 +2,15 @@ import type { ExecutionResponse, ExecuteRequestPayload } from "./schema";
 
 export async function executeRequest(
   payload: ExecuteRequestPayload,
+  csrfToken?: string,
 ): Promise<ExecutionResponse> {
   try {
     const response = await fetch("/api/requests/execute", {
       method: "POST",
-      headers: { "content-type": "application/json" },
+      headers: {
+        "content-type": "application/json",
+        ...(csrfToken ? { "x-csrf-token": csrfToken } : {}),
+      },
       body: JSON.stringify(payload),
     });
 

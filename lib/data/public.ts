@@ -5,7 +5,6 @@ import { prisma } from "@/lib/db";
 import {
   buildResponseTimeSeries,
   calculateAverageResponseTime,
-  calculateUptime,
   rangeToStartDate,
 } from "@/lib/monitoring/metrics";
 import type {
@@ -23,7 +22,23 @@ type IncidentWithMonitor = Prisma.IncidentGetPayload<{
   include: { monitor: { select: { name: true } } };
 }>;
 
-export async function getPublicOverview(): Promise<{
+interface StatusCountRow {
+  status: string;
+  _count: { _all: number };
+}
+
+interface MonitorStatusCountRow extends StatusCountRow {
+  monitorId: string;
+}
+
+interface ResponseCountRow {
+  _count: { _all: number };
+  _avg: { responseTime: number | null };
+}
+
+export async function getPublicOverview(
+  now = new Date(),
+): Promise<{
   totalMonitors: number;
   operationalMonitors: number;
   downMonitors: number;
@@ -32,20 +47,35 @@ export async function getPublicOverview(): Promise<{
   averageResponseTimeMs: number;
   recentIncidents: PublicIncidentDto[];
 }> {
-  const since = new Date(Date.now() - UPTIME_WINDOW_MS);
-  const [monitors, checks, incidents] = await Promise.all([
+  const since = new Date(now.getTime() - UPTIME_WINDOW_MS);
+  const checkWhere: Prisma.MonitorCheckWhereInput = {
+    checkedAt: { gte: since, lte: now },
+    monitor: { isActive: true, displayPublicly: true },
+  };
+
+  const [monitors, statusRows, responseRows, incidents] = await Promise.all([
     prisma.monitor.findMany({
       where: { isActive: true, displayPublicly: true },
       orderBy: { createdAt: "desc" },
     }),
-    prisma.monitorCheck.findMany({
-      where: { checkedAt: { gte: since }, monitor: { isActive: true, displayPublicly: true } },
-      select: { monitorId: true, status: true, responseTime: true },
+    prisma.monitorCheck.groupBy({
+      by: ["status"],
+      where: checkWhere,
+      _count: { _all: true },
+    }),
+    prisma.monitorCheck.groupBy({
+      by: ["status"],
+      where: { ...checkWhere, status: "UP", responseTime: { gt: 0 } },
+      _count: { _all: true },
+      _avg: { responseTime: true },
     }),
     prisma.incident.findMany({
       where: {
         monitor: { isActive: true, displayPublicly: true },
-        OR: [{ status: "ACTIVE" }, { resolvedAt: { gte: new Date(Date.now() - 7 * UPTIME_WINDOW_MS) } }],
+        OR: [
+          { status: "ACTIVE" },
+          { resolvedAt: { gte: new Date(now.getTime() - 7 * UPTIME_WINDOW_MS) } },
+        ],
       },
       include: { monitor: { select: { name: true } } },
       orderBy: { startedAt: "desc" },
@@ -57,9 +87,11 @@ export async function getPublicOverview(): Promise<{
     totalMonitors: monitors.length,
     operationalMonitors: monitors.filter((monitor) => monitor.currentStatus === "UP").length,
     downMonitors: monitors.filter((monitor) => monitor.currentStatus === "DOWN").length,
-    unknownMonitors: monitors.filter((monitor) => monitor.currentStatus === "UNKNOWN").length,
-    uptimePercentage: calculateUptime(checks),
-    averageResponseTimeMs: calculateAverageResponseTime(checks),
+    unknownMonitors: monitors.filter(
+      (monitor) => mapMonitorStatus(String(monitor.currentStatus)) === "UNKNOWN",
+    ).length,
+    uptimePercentage: uptimeFromStatusCounts(statusRows as StatusCountRow[]),
+    averageResponseTimeMs: averageFromResponseCounts(responseRows as ResponseCountRow[]),
     recentIncidents: incidents.map(mapIncident),
   };
 }
@@ -67,6 +99,7 @@ export async function getPublicOverview(): Promise<{
 export async function getPublicMonitors(
   page: number,
   pageSize: number,
+  now = new Date(),
 ): Promise<{ monitors: PublicMonitorDto[]; total: number }> {
   const [total, monitors] = await Promise.all([
     prisma.monitor.count({ where: { isActive: true, displayPublicly: true } }),
@@ -78,15 +111,23 @@ export async function getPublicMonitors(
     }),
   ]);
 
-  const since = new Date(Date.now() - UPTIME_WINDOW_MS);
-  const checks = await prisma.monitorCheck.findMany({
-    where: { monitorId: { in: monitors.map((monitor) => monitor.id) }, checkedAt: { gte: since } },
-    select: { monitorId: true, status: true, responseTime: true },
-  });
+  const monitorIds = monitors.map((monitor) => monitor.id);
+  const uptimeByMonitor = monitorIds.length
+    ? buildUptimeByMonitor(
+        (await prisma.monitorCheck.groupBy({
+          by: ["monitorId", "status"],
+          where: {
+            monitorId: { in: monitorIds },
+            checkedAt: { gte: new Date(now.getTime() - UPTIME_WINDOW_MS), lte: now },
+          },
+          _count: { _all: true },
+        })) as unknown as MonitorStatusCountRow[],
+      )
+    : new Map<string, number>();
 
   return {
     total,
-    monitors: monitors.map((monitor) => mapMonitor(monitor, checks)),
+    monitors: monitors.map((monitor) => mapMonitor(monitor, uptimeByMonitor.get(monitor.id) ?? 0)),
   };
 }
 
@@ -113,62 +154,73 @@ export async function getPublicIncidents(
   return { total, incidents: incidents.map(mapIncident) };
 }
 
-export async function getPublicResponseSeries(range: HistoryRange, maxPoints = 16) {
-  const checks = await prisma.monitorCheck.findMany({
+export async function getPublicResponseSeries(
+  range: HistoryRange,
+  maxPoints = 16,
+  now = new Date(),
+) {
+  const rows = await prisma.monitorCheck.findMany({
     where: {
-      checkedAt: { gte: rangeToStartDate(range) },
+      checkedAt: { gte: rangeToStartDate(range, now), lte: now },
       monitor: { isActive: true, displayPublicly: true },
     },
-    orderBy: { checkedAt: "asc" },
-    take: 500,
+    orderBy: { checkedAt: "desc" },
+    take: HISTORY_LIMIT,
     select: { checkedAt: true, status: true, responseTime: true },
   });
-  return buildResponseTimeSeries(checks, maxPoints);
+  return buildResponseTimeSeries(rows.reverse(), maxPoints);
 }
 
 export async function getPublicMonitorHistory(
   monitorId: string,
   range: HistoryRange,
+  now = new Date(),
 ): Promise<MonitorHistoryDto | null> {
   const monitor = await prisma.monitor.findFirst({
     where: { id: monitorId, isActive: true, displayPublicly: true },
   });
   if (!monitor) return null;
 
-  const checks = await prisma.monitorCheck.findMany({
-    where: { monitorId, checkedAt: { gte: rangeToStartDate(range) } },
-    orderBy: { checkedAt: "asc" },
-    take: HISTORY_LIMIT,
-  });
+  const where: Prisma.MonitorCheckWhereInput = {
+    monitorId,
+    checkedAt: { gte: rangeToStartDate(range, now), lte: now },
+  };
+  const [checks, totalChecks] = await Promise.all([
+    prisma.monitorCheck.findMany({
+      where,
+      orderBy: { checkedAt: "desc" },
+      take: HISTORY_LIMIT,
+    }),
+    prisma.monitorCheck.count({ where }),
+  ]);
+  const points = checks.reverse();
 
   return {
     monitorId,
     range,
-    points: checks.map((check) => ({
+    points: points.map((check) => ({
       checkedAt: check.checkedAt.toISOString(),
       status: check.status,
       statusCode: check.statusCode,
       responseTime: check.responseTime,
     })),
-    totalChecks: checks.length,
-    uptimePercentage: calculateUptime(checks),
-    averageResponseTimeMs: calculateAverageResponseTime(checks),
+    totalChecks,
+    uptimePercentage: uptimeFromStatusCounts(
+      points.map((check) => ({ status: String(check.status), _count: { _all: 1 } })),
+    ),
+    averageResponseTimeMs: calculateAverageResponseTime(points),
   };
 }
 
-function mapMonitor(
-  monitor: Monitor,
-  checks: Array<{ monitorId: string; status: MonitorStatusValue; responseTime: number }>,
-): PublicMonitorDto {
-  const monitorChecks = checks.filter((check) => check.monitorId === monitor.id);
+function mapMonitor(monitor: Monitor, uptimePercentage: number): PublicMonitorDto {
   return {
     id: monitor.id,
     name: monitor.name,
     description: monitor.description,
-    currentStatus: monitor.currentStatus,
+    currentStatus: mapMonitorStatus(String(monitor.currentStatus)),
     lastCheckedAt: monitor.lastCheckedAt?.toISOString() ?? null,
     lastResponseTime: monitor.lastResponseTime,
-    uptimePercentage: calculateUptime(monitorChecks),
+    uptimePercentage,
     isActive: monitor.isActive,
   };
 }
@@ -185,6 +237,45 @@ function mapIncident(incident: IncidentWithMonitor): PublicIncidentDto {
     startedAt: incident.startedAt.toISOString(),
     resolvedAt: incident.resolvedAt?.toISOString() ?? null,
   };
+}
+
+function uptimeFromStatusCounts(rows: StatusCountRow[]): number {
+  let successful = 0;
+  let determinate = 0;
+  for (const row of rows) {
+    const status = mapMonitorStatus(row.status);
+    if (status === "UNKNOWN") continue;
+    determinate += row._count._all;
+    if (status === "UP") successful += row._count._all;
+  }
+  return determinate === 0 ? 0 : Math.round((successful / determinate) * 1000) / 10;
+}
+
+function buildUptimeByMonitor(rows: MonitorStatusCountRow[]): Map<string, number> {
+  const grouped = new Map<string, StatusCountRow[]>();
+  for (const row of rows) {
+    const monitorRows = grouped.get(row.monitorId) ?? [];
+    monitorRows.push(row);
+    grouped.set(row.monitorId, monitorRows);
+  }
+  return new Map(
+    [...grouped.entries()].map(([monitorId, monitorRows]) => [
+      monitorId,
+      uptimeFromStatusCounts(monitorRows),
+    ]),
+  );
+}
+
+function averageFromResponseCounts(rows: ResponseCountRow[]): number {
+  let samples = 0;
+  let total = 0;
+  for (const row of rows) {
+    const average = row._avg.responseTime;
+    if (average === null || !Number.isFinite(average)) continue;
+    samples += row._count._all;
+    total += average * row._count._all;
+  }
+  return samples === 0 ? 0 : Math.round(total / samples);
 }
 
 export function mapMonitorStatus(value: string): MonitorStatusValue {

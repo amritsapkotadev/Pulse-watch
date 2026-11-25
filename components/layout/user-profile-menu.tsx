@@ -1,13 +1,13 @@
 "use client";
 
+import { useState } from "react";
+import { LogOut, Settings2 } from "lucide-react";
 import { useRouter } from "next/navigation";
-import { ChevronDown, LogOut, Settings2, History } from "lucide-react";
 
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import {
   DropdownMenu,
   DropdownMenuContent,
-  DropdownMenuGroup,
   DropdownMenuItem,
   DropdownMenuLabel,
   DropdownMenuSeparator,
@@ -17,11 +17,42 @@ import { cn } from "@/lib/utils";
 
 export interface UserProfileMenuProps {
   variant?: "sidebar" | "topbar";
+  adminEmail?: string;
+  csrfToken?: string;
 }
 
-export function UserProfileMenu({ variant = "sidebar" }: UserProfileMenuProps) {
+function initials(email: string | undefined): string {
+  if (!email) return "AD";
+  const [local = ""] = email.split("@");
+  return local.slice(0, 2).toUpperCase() || "AD";
+}
+
+export function UserProfileMenu({
+  variant = "sidebar",
+  adminEmail,
+  csrfToken,
+}: UserProfileMenuProps) {
   const router = useRouter();
+  const [pending, setPending] = useState(false);
   const isSidebar = variant === "sidebar";
+
+  async function handleSignOut() {
+    if (!csrfToken || pending) return;
+    setPending(true);
+    try {
+      const response = await fetch("/api/admin/session", {
+        method: "DELETE",
+        credentials: "same-origin",
+        headers: { "x-csrf-token": csrfToken },
+      });
+      if (response.ok) {
+        router.replace("/login");
+        router.refresh();
+      }
+    } finally {
+      setPending(false);
+    }
+  }
 
   return (
     <DropdownMenu>
@@ -30,68 +61,48 @@ export function UserProfileMenu({ variant = "sidebar" }: UserProfileMenuProps) {
           <button
             type="button"
             className={cn(
-              "flex items-center gap-2 rounded-lg transition-colors focus-visible:ring-2 focus-visible:ring-indigo-400 focus-visible:outline-none",
-              isSidebar
-                ? "w-full px-2 py-2 text-left hover:bg-slate-800/70"
-                : "p-0.5 hover:bg-muted",
+              "flex items-center gap-2 rounded-lg transition-colors focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none",
+              isSidebar ? "w-full px-2 py-2 text-left hover:bg-muted" : "p-0.5 hover:bg-muted",
             )}
-            aria-label="Open profile menu"
+            aria-label="Open account menu"
           />
         }
       >
-        <Avatar className="size-8 border border-slate-700 bg-slate-800">
-          <AvatarFallback className="bg-indigo-500/20 text-xs font-semibold text-indigo-200">
-            AM
+        <Avatar className="size-8 border border-border bg-white">
+          <AvatarFallback className="bg-muted text-xs font-semibold text-foreground">
+            {initials(adminEmail)}
           </AvatarFallback>
         </Avatar>
         {isSidebar ? (
-          <>
-            <span className="min-w-0 flex-1">
-              <span className="block truncate text-xs font-medium text-slate-100">
-                Alex Morgan
-              </span>
-              <span className="block truncate text-[0.65rem] text-slate-400">
-                Demo user
-              </span>
+          <span className="min-w-0 flex-1">
+            <span className="block truncate text-xs font-medium text-foreground">
+              {adminEmail ?? "Administrator"}
             </span>
-            <ChevronDown
-              className="size-3.5 shrink-0 text-slate-500"
-              aria-hidden="true"
-            />
-          </>
+            <span className="block truncate text-[0.65rem] text-muted-foreground">
+              Administrator
+            </span>
+          </span>
         ) : null}
       </DropdownMenuTrigger>
-      <DropdownMenuContent align="end" className="w-60">
-        <DropdownMenuGroup>
-          <DropdownMenuLabel className="py-2">
-            <span className="block text-sm font-medium text-foreground">
-              Alex Morgan
-            </span>
-            <span className="block text-xs font-normal text-muted-foreground">
-              alex@pulsewatch.demo
-            </span>
-          </DropdownMenuLabel>
-        </DropdownMenuGroup>
+      <DropdownMenuContent align="end" className="w-64">
+        <DropdownMenuLabel className="py-2">
+          <span className="block truncate text-sm font-medium text-foreground">
+            {adminEmail ?? "Administrator"}
+          </span>
+          <span className="block text-xs font-normal text-muted-foreground">
+            Signed in as administrator
+          </span>
+        </DropdownMenuLabel>
         <DropdownMenuSeparator />
         <DropdownMenuItem onSelect={() => router.push("/settings")}>
           <Settings2 className="size-4" aria-hidden="true" />
-          Workspace settings
-        </DropdownMenuItem>
-        <DropdownMenuItem onSelect={() => router.push("/history")}>
-          <History className="size-4" aria-hidden="true" />
-          Request history
+          Settings
         </DropdownMenuItem>
         <DropdownMenuSeparator />
-        <DropdownMenuItem disabled className="justify-between gap-2">
-          <span className="flex items-center gap-1.5">
-            <LogOut className="size-4" aria-hidden="true" />
-            Sign out
-          </span>
-          <span className="text-[0.65rem] text-muted-foreground">Phase 2</span>
+        <DropdownMenuItem onSelect={handleSignOut} disabled={!csrfToken || pending}>
+          <LogOut className="size-4" aria-hidden="true" />
+          {pending ? "Signing out…" : "Sign out"}
         </DropdownMenuItem>
-        <p className="px-1.5 py-1 text-[0.7rem] text-muted-foreground">
-          Authentication is not part of Phase 1.
-        </p>
       </DropdownMenuContent>
     </DropdownMenu>
   );

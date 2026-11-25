@@ -261,3 +261,57 @@ export interface DashboardData {
   history: Array<{ label: string; responseTime: number; status: MonitorStatusValue }>;
   hasData: boolean;
 }
+
+export type PublicOverallState = "OPERATIONAL" | "DEGRADED" | "OUTAGE" | "NO_DATA";
+export type PublicServiceState = MonitorStatusValue | "DEGRADED";
+
+export interface PublicDashboardMonitorDto {
+  id: string;
+  name: string;
+  description: string;
+  status: PublicServiceState;
+  lastCheckedAt: string | null;
+  lastResponseTimeMs: number | null;
+  uptimePercentage: number;
+  totalChecks: number;
+  failedChecks: number;
+  averageResponseTimeMs: number | null;
+}
+
+export interface PublicDashboardIncidentDto {
+  id: string;
+  monitorId: string;
+  monitorName: string;
+  title: string;
+  severity: IncidentSeverityValue;
+  status: IncidentStatusValue;
+  startedAt: string;
+  resolvedAt: string | null;
+  durationMs: number;
+  occurrenceCount: number;
+}
+
+export interface PublicDashboardDto {
+  range: AnalyticsRange;
+  generatedAt: string;
+  latestCheckAt: string | null;
+  status: PublicOverallState;
+  statusMessage: string;
+  stats: {
+    totalMonitors: number;
+    operationalMonitors: number;
+    degradedMonitors: number;
+    downMonitors: number;
+    noDataMonitors: number;
+    uptimePercentage: number;
+    averageResponseTimeMs: number | null;
+    p95ResponseTimeMs: number | null;
+    totalChecks: number;
+    failedChecks: number;
+    activeIncidents: number;
+  };
+  uptimeTrend: AnalyticsBucketDto[];
+  responseTrend: AnalyticsBucketDto[];
+  monitors: PublicDashboardMonitorDto[];
+  incidents: PublicDashboardIncidentDto[];
+}

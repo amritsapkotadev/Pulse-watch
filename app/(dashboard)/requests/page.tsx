@@ -4,6 +4,7 @@ import Link from "next/link";
 import { RequestBuilder } from "@/components/requests/request-builder";
 import { PageHeader } from "@/components/shared/page-header";
 import { Button } from "@/components/ui/button";
+import { requireAdminPage } from "@/lib/auth/dal";
 import { getNavItem } from "@/lib/navigation";
 
 const item = getNavItem("/requests");
@@ -13,7 +14,8 @@ export const metadata: Metadata = {
   description: item.description,
 };
 
-export default function RequestsPage() {
+export default async function RequestsPage() {
+  const session = await requireAdminPage();
   const executionEnabled = process.env.NODE_ENV !== "production";
 
   return (
@@ -28,7 +30,7 @@ export default function RequestsPage() {
           </Button>
         }
       />
-      <RequestBuilder executionEnabled={executionEnabled} />
+      <RequestBuilder executionEnabled={executionEnabled} csrfToken={session.csrfToken} />
     </div>
   );
 }

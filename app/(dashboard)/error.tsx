@@ -26,8 +26,7 @@ export default function Error({
           </span>
           <CardTitle className="text-lg">Something went wrong</CardTitle>
           <CardDescription>
-            The dashboard could not be rendered. This is a Phase 1 placeholder
-            error state; no monitoring data was affected.
+            The dashboard could not be rendered. Stored monitoring data was not changed.
           </CardDescription>
         </CardHeader>
         <CardContent className="px-6 pb-6">

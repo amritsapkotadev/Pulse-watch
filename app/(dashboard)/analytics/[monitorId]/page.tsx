@@ -8,7 +8,7 @@ import { MonitorAnalyticsDetail } from "@/components/analytics/monitor-analytics
 import { Card, CardContent } from "@/components/ui/card";
 import { getPublicMonitorAnalytics } from "@/lib/data/analytics";
 import { isDatabaseConfigured } from "@/lib/db";
-import { analyticsRangeQuerySchema, idParamSchema } from "@/lib/monitoring/schemas";
+import { analyticsRangeQuerySchema, monitorIdParamSchema } from "@/lib/monitoring/schemas";
 import { DEFAULT_ANALYTICS_RANGE, type MonitorAnalyticsDto } from "@/lib/monitoring/types";
 
 export const metadata: Metadata = {
@@ -25,7 +25,7 @@ interface MonitorAnalyticsPageProps {
 
 async function MonitorAnalyticsContent({ params, searchParams }: MonitorAnalyticsPageProps) {
   await connection();
-  const id = idParamSchema.safeParse(await params);
+  const id = monitorIdParamSchema.safeParse(await params);
   const parsedRange = analyticsRangeQuerySchema.safeParse(await searchParams);
   if (!id.success) notFound();
   const range = parsedRange.success ? parsedRange.data.range : DEFAULT_ANALYTICS_RANGE;
@@ -42,7 +42,7 @@ async function MonitorAnalyticsContent({ params, searchParams }: MonitorAnalytic
   let data: MonitorAnalyticsDto | null = null;
   let failed = false;
   try {
-    data = await getPublicMonitorAnalytics(id.data.id, range);
+    data = await getPublicMonitorAnalytics(id.data.monitorId, range);
   } catch {
     failed = true;
   }
